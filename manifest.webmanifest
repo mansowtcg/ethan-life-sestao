@@ -1,0 +1,19 @@
+{
+ "id": "./",
+ "name": "Ethan life: Sestao",
+ "short_name": "Sestao",
+ "description": "La vida de Ethan día a día, en 3D y por el Sestao de verdad: taller, aparcar, cena y a dormir.",
+ "lang": "es",
+ "start_url": "./",
+ "scope": "./",
+ "display": "fullscreen",
+ "orientation": "any",
+ "background_color": "#13201a",
+ "theme_color": "#1f3328",
+ "categories": ["games"],
+ "icons": [
+  {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+  {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+  {"src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+ ]
+}

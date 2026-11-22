@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>Ethan life: Sestao</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#1f3328">
+<meta name="description" content="La vida de Ethan día a día, en 3D y por el Sestao de verdad: suena el despertador, ficha en el taller, busca sitio para aparcar, cena y a dormir. Gratis, en el navegador, en móvil y en ordenador.">
+<link rel="icon" type="image/png" href="favicon.png"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Sestao">
+<meta property="og:type" content="website"><meta property="og:title" content="Ethan life: Sestao"><meta property="og:description" content="La vida de Ethan día a día, en 3D y por el Sestao de verdad. Gratis, en el navegador.">
+<meta property="og:image" content="https://mansowtcg.github.io/ethan-life-sestao/og.jpg"><meta property="og:url" content="https://mansowtcg.github.io/ethan-life-sestao/"><meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="game.css">
+</head><body>
+<canvas id="c"></canvas>
+<div id="hud" hidden>
+  <div id="mini"><canvas id="mm" width="320" height="320"></canvas><div id="street"></div><div id="zone" hidden></div></div>
+  <div id="stats">
+    <div class="row"><span id="clock">Lun · 08:00</span><span id="money">35 €</span></div>
+    <div class="bar en" title="Energía"><b>⚡</b><span><i id="b-en"></i></span></div>
+    <div class="bar hu" title="Hambre"><b>🥙</b><span><i id="b-hu"></i></span></div>
+    <div class="bar fu" id="w-fu" title="Gasolina"><b>⛽</b><span><i id="b-fu"></i></span></div>
+    <div class="bar dm" id="w-dm" title="Estado del coche"><b>🔧</b><span><i id="b-dm"></i></span></div>
+  </div>
+  <div id="buffs" hidden></div>
+  <div id="top"><button id="ff" data-key="KeyR" title="Cámara rápida (R)" aria-label="Cámara rápida">⏩</button><button data-key="KeyT" title="Móvil (T)">📱</button><button data-key="KeyM" title="Mapa (M)">🗺️</button><button data-key="KeyV" title="Cambiar de vista (V)">👁️</button><button data-key="KeyN" title="Sonido">🔊</button></div>
+  <div id="speed" hidden><b>0</b><small>km/h</small></div>
+  <div id="tracker" hidden></div>
+  <div id="radio" hidden><b>📻 Radio Sestao</b><span></span></div>
+  <div id="prompt" hidden></div>
+  <div id="toasts"></div><div id="labels"></div><div id="banner" hidden></div>
+  <div id="joy"><i></i></div>
+  <div id="pad"><button id="p-car" data-key="KeyF">🚗</button><button id="p-b" data-btn="run">Correr</button><button id="p-a" data-key="KeyE">A</button></div>
+  <div id="help">WASD moverse · Mayús correr · E acción · F coche · Espacio freno de mano · V vista · G dron · T móvil · M mapa · R cámara rápida</div>
+</div>
+<div id="dlg" hidden><div class="box"><div class="hd"><span id="d-ic"></span><div><h2 id="d-t"></h2><p id="d-x"></p></div></div><div id="d-o"></div><button id="d-c">Cerrar</button></div></div>
+<div id="mg" hidden><div class="box"><h2 id="mg-t">¡Aprieta la tuerca!</h2><p id="mg-x"></p><div id="mg-bar"><i id="mg-z"></i><b id="mg-c"></b></div><div id="mg-r"></div><button id="mg-b">¡Ahora!</button></div></div>
+<div id="bigmap" hidden><div id="bm-wrap"><canvas id="bm"></canvas><div id="bm-zoom"><button id="bm-in">+</button><button id="bm-out">−</button></div><div id="bm-tip">Toca el mapa o elige un sitio para poner el GPS</div><div id="bm-osm">© colaboradores de OpenStreetMap · Relieve: MDT © IGN</div></div><div id="bm-side"><h2>¿A dónde?</h2><input id="bm-q" type="search" placeholder="Buscar calle, barrio o sitio" autocomplete="off" autocapitalize="off" spellcheck="false"><div id="bm-list"></div><button id="bm-c">Cerrar</button></div></div>
+<div id="title"><div class="box"><h1>Ethan life<span>Sestao</span></h1><p>La vida de Ethan, día a día: suena el despertador, ficha en el taller, vuelve, busca sitio para aparcar, cena y a dormir. Y lo que caiga por el camino.</p>
+  <div id="t-mode" role="group" aria-label="Modo de juego"><button id="t-on" type="button">🌐 Online</button><button id="t-off" type="button">👤 Local</button></div><small id="t-net"></small><input id="t-nick" type="text" maxlength="14" autocomplete="off" spellcheck="false" aria-label="Apodo para el online" placeholder="Tu apodo" hidden>
+  <div id="t-btn"><button id="t-go" disabled>Jugar</button><button id="t-new" hidden>Partida nueva</button></div>
+  <small id="t-load">Cargando Sestao…</small><small id="t-map"></small></div></div>
+<div id="fade"></div>
+<script src="map.js"></script>
+<script src="game.js"></script>
+</body></html>
