@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { G, dampAng, angDiff } from './state.js';
 import { I, initInput, poll } from './input.js';
-import { W, extend, buildWorld, collide, inWaterPoly, wallBetween, roadW, knockProp, clampWorld, tickWorld, updateLods, tubeAt } from './world.js';
+import { roadNear, W, extend, buildWorld, collide, inWaterPoly, wallBetween, roadW, knockProp, clampWorld, tickWorld, updateLods, tubeAt } from './world.js';
 import { initSky, updateSky, tickSky, setFogBase, SKY } from './sky.js';
 import { buildStreet, tickStreet, poiAt, transitAt, ST, CAT } from './street.js';
 import { initTrains, updateTrains, trainHit, TRN } from './trains.js';
@@ -57,7 +57,7 @@ function boot() {
   $('t-load').textContent = saved ? 'Partida guardada: día ' + saved.day + '.' : 'WASD o la palanca para moverte. E o el botón A para todo lo demás.'; $('t-map').textContent = M.src === 'provisional' ? 'Mapa provisional, trazado a mano.' : (M.attribution || '');
   $('t-go').textContent = saved ? 'Continuar' : 'Jugar'; $('t-go').disabled = false; $('t-go').onclick = () => start(false); $('t-new').hidden = !saved; $('t-new').onclick = () => start(true);
   G.drone = setDrone; G.setDest = setDest; G.leaveCar = leaveCar; G.enterCar = enterCar; G.swapCar = id => { car.setModel(id); car.g.add(head, head.target); }; G.towCar = towCar; G.setQuality = n => { autoQ = !n; G.q = n || (G.soft ? 1 : 2); noUp = 0; upHold = 10; fAvg = .0167; ad.off = false; ad.ref = ad.bad = ad.q2 = ad.slow = 0; try { if (n) localStorage.setItem('els_q', n); else localStorage.removeItem('els_q'); localStorage.removeItem('els_ad'); } catch (e) { } applyQuality(); G.autoQ = autoQ; }; G.autoQ = autoQ; G.rscale = () => scale; G.adapt = adapt; G.adState = () => ad; G.restart = () => { G.S = newGame(); placeAll(true); dress(P.ethan, []); car.setModel('c4'); car.g.add(head, head.target); G.mission && G.endMission(false); intro(); };
-  window.ELS = { G, P, W, GR, SP, ST, TR, TRN, SKY, PED, PK, ZONE, NET, marks, tickMarks, parkState, DAY: { ps: parkDbg, bigPark, carOK, offers }, car, I, tick, renderer, scene, T, terr: { gY, mY, standY }, setFogBase, nav: { nearestNode, nearestEdge, route, routeTo, laneOffset } };
+  window.ELS = { roadNear, G, P, W, GR, SP, ST, TR, TRN, SKY, PED, PK, ZONE, NET, marks, tickMarks, parkState, DAY: { ps: parkDbg, bigPark, carOK, offers }, car, I, tick, renderer, scene, T, terr: { gY, mY, standY }, setFogBase, nav: { nearestNode, nearestEdge, route, routeTo, laneOffset } };
   updateSky(0, true); warm(); G.bootMs = Math.round(performance.now() - tb0); try { initNet(); titleNet(); } catch (e) { } requestAnimationFrame(frame);
 }
 function start(fresh) {
@@ -105,7 +105,7 @@ function warm() {
 // ---------- teclas y acciones
 function onKey(k) {
   if (G.title) { if (k === 'Enter' || k === 'Space') start(false); return; }
-  if (G.mgPress) { if (k === 'Space' || k === 'Enter' || k === 'KeyE') G.mgPress(); return; }
+  if (G.mgPress) { if (G.mgKey && G.mgKey(k)) return; if (k === 'Space' || k === 'Enter' || k === 'KeyE') G.mgPress(); return; }
   if (G.dr) { if (k === 'KeyF') G.dr.ty = (G.dr.ty || G.dr.y) - 14; else if (k === 'KeyE' || k === 'Escape' || k === 'KeyT' || k === 'KeyG' || k === 'Enter') setDrone(false); return; }
   if (hudKey(k) || G.busy) return;
   if (k === 'KeyR') G.setSpeed(SPEEDS[(SPEEDS.indexOf(G.speed || 1) + 1) % SPEEDS.length]); else if (k === 'KeyE') action(); else if (k === 'KeyF' || k === 'Enter') G.mode === 'car' ? leaveCar() : enterCar(); else if (k === 'KeyT' || k === 'Escape' || k === 'KeyP') openPhone(); else if (k === 'KeyM') openMap(); else if (k === 'KeyN') toast(toggleMute() ? 'Sonido apagado' : 'Sonido encendido', '🔊'); else if (k === 'KeyH' && G.mode === 'car') sfx('horn'); else if (k === 'KeyG') setDrone(true); else if (k === 'KeyV' || k === 'KeyC') { const c = G.cam; c.fp = !c.fp; c.look = 0; c.fpP = 0; c.manual = 0; try { localStorage.setItem('els_fp', c.fp ? '1' : '0'); } catch (e) { } toast(c.fp ? 'Vista en primera persona.' : 'Vista en tercera persona.', '👁️'); }

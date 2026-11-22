@@ -128,7 +128,7 @@ const HW = { motorway: 1, trunk: 1, primary: 1, secondary: 1, tertiary: 1, resid
 const isTun = t => t.tunnel && t.tunnel !== 'no';
 // pasillos de metro y de centros comerciales: grupos de caminos subterráneos unidos a una boca de metro o marcados como interiores
 const underground = new Set();
-{ const cand = []; ways.forEach(w => { const t = w.tags; if (!(t.highway in HW) || HW[t.highway]) return; if (t.indoor === 'yes' || t.level !== undefined || t.location === 'underground' || t.conveying) { underground.add(w.id); cand.push(w); } else if (isTun(t) && t.tunnel !== 'building_passage' && num(t.layer) < 0 && !t.name) cand.push(w); });
+{ const cand = []; ways.forEach(w => { const t = w.tags; if (!(t.highway in HW) || HW[t.highway]) return; if (t.indoor === 'yes' || t.level !== undefined || t.location === 'underground' || (t.conveying && (isTun(t) || num(t.layer) < 0))) { underground.add(w.id); cand.push(w); }      /* las rampas mecánicas al aire libre se quedan */ else if (isTun(t) && t.tunnel !== 'building_passage' && num(t.layer) < 0 && !t.name) cand.push(w); });
   const byNode = new Map(); cand.forEach(w => w.nd.forEach(id => { let l = byNode.get(id); if (!l) byNode.set(id, l = []); l.push(w); }));
   const seen = new Set(); cand.forEach(w0 => { if (seen.has(w0.id)) return; const grp = [], st = [w0]; seen.add(w0.id); let metro = false;
     while (st.length) { const w = st.pop(); grp.push(w); if (underground.has(w.id)) metro = true; w.nd.forEach(id => { const n = nodes.get(id); if (n && n.tags && (n.tags.railway === 'subway_entrance' || n.tags.highway === 'elevator' && num(n.tags.layer) < 0)) metro = true; (byNode.get(id) || []).forEach(o => { if (!seen.has(o.id)) { seen.add(o.id); st.push(o); } }); }); }
@@ -153,6 +153,8 @@ hw.forEach(w => {
   const one = tg.oneway === 'yes' || tg.oneway === '1' || tg.oneway === 'true' || tg.oneway === '-1' || tg.junction === 'roundabout' || tg.junction === 'circular' || (t === 'motorway' && tg.oneway !== 'no') || (/_link$/.test(t) && tg.oneway !== 'no' && tg.oneway !== undefined);
   const wd = roadWidth(t, tg, one), name = tg.name || (drv ? tg.ref : undefined), tun = isTun(tg) || tg.covered === 'yes', rev = tg.oneway === '-1';
   const base = { t, w: wd, w0: wd }; if (num(tg.width) >= 1.5) base.wTag = 1; if (name) base.n = name; if (one && drv) base.o = 1; if (tg.bridge && tg.bridge !== 'no') base.b = 1; if (tun) base.u = 1; const ms = num(tg.maxspeed); if (ms >= 5 && drv) base.v = ms;
+  if (tg.conveying && tg.conveying !== 'no' && tg.indoor !== 'yes' && !tun && !(num(tg.layer) < 0)) base.cv = tg.conveying === 'backward' ? -1 : tg.conveying === 'forward' ? 1 : String(tg.incline || '') === 'down' ? -1 : 1;      /* rampas y escaleras mecánicas al aire libre: hacia dónde va la cinta respecto al dibujo */
+  if (t === 'steps' || base.cv) { const ic = String(tg.incline || ''), sc = num(tg.step_count); if (/^up$|^\+?\d/.test(ic)) base.inc = 1; else if (/^down$|^-\d/.test(ic)) base.inc = -1; if (sc >= 2 && sc < 400) base.sc = sc; if (tg.handrail === 'no') base.hr = 0; }      /* escaleras: hacia dónde suben, cuántos peldaños y si llevan pasamanos */
   if (/^(private|no|customers|delivery)$/.test(tg.access || '') || /^(private|no)$/.test(tg.motor_vehicle || '')) base.pr = 1; if (t === 'service' && tg.service) base.s = tg.service === 'parking_aisle' ? 'pa' : tg.service === 'driveway' ? 'dw' : tg.service === 'alley' ? 'al' : undefined;
   // aparcamiento junto a la calzada, por lado (respecto al sentido en que está dibujada la vía): 0 no hay, 1 en línea, 2 en diagonal, 3 en batería
   if (drv) { const PT = v => v === 'diagonal' ? 2 : v === 'perpendicular' ? 3 : 1, side = sd => { let v = tg['parking:' + sd] !== undefined ? tg['parking:' + sd] : tg['parking:both'], o = tg['parking:' + sd + ':orientation'] !== undefined ? tg['parking:' + sd + ':orientation'] : tg['parking:both:orientation']; const old = tg['parking:lane:' + sd] !== undefined ? tg['parking:lane:' + sd] : tg['parking:lane:both'];
@@ -458,7 +460,7 @@ indexBuildings();
   let dead = 0; R.forEach(r => { if (!DRV(r) || r.iso) return; if (r.p.some(q => !core[id.get(nkey(q))])) { r.dead = 1; dead += lenOf(r.p); } });
   console.log('  sin ida y vuelta (salidas del mapa y sentidos únicos sin retorno): ' + (dead / 1000).toFixed(1) + ' km');
 })();
-R.forEach(r => { const o = { t: r.t, p: flat(r.p), w: r.w }; ['n', 'ne', 'o', 'b', 'u', 'v', 'pr', 's', 'l', 'rb', 'ns', 'iso', 'dead'].forEach(k => { if (r[k] !== undefined) o[k] = r[k]; }); if (r.pkl) o.pl = r.pkl; if (r.pkr) o.pr2 = r.pkr; r.out = o; M.roads.push(o); });
+R.forEach(r => { const o = { t: r.t, p: flat(r.p), w: r.w }; ['n', 'ne', 'o', 'b', 'u', 'v', 'pr', 's', 'l', 'rb', 'ns', 'iso', 'dead', 'inc', 'sc', 'hr', 'cv'].forEach(k => { if (r[k] !== undefined) o[k] = r[k]; }); if (r.pkl) o.pl = r.pkl; if (r.pkr) o.pr2 = r.pkr; r.out = o; M.roads.push(o); });
 crossTmp.forEach(c => { if (R.indexOf(c.road) < 0 || bldAt(c.x, c.z) >= 0) return; M.cross.push(c.x, c.z, r2(c.a), c.road.w, c.sig ? 1 : 0); });
 signTmp.forEach(c => { if (R.indexOf(c.road) < 0) return; M.signs.push(c.x, c.z, r2(c.a), c.road.w, c.k); });
 lightTmp.forEach(c => { if (R.indexOf(c.road) < 0) return; M.lights.push(c.x, c.z, r2(c.a), c.road.w); });
@@ -474,6 +476,32 @@ const free = (x, z, m) => inside(x, z, 6) && bldAt(x, z) < 0 && !onRoad(x, z, m 
 ntags.forEach(n => { if (n.tags.natural === 'tree') { const x = px(n), z = pz(n); if (inside(x, z, MARG - 5) && bldAt(x, z) < 0 && !onRoad(x, z, .3)) M.trees.push(x, z); } });
 ways.forEach(w => { if (w.tags.natural !== 'tree_row') return; const p = pts(w); for (let i = 0; i + 1 < p.length; i++) { const l = Math.hypot(p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1]), n = Math.max(1, Math.round(l / 7)); for (let k = 0; k <= (i + 2 === p.length ? n : n - 1); k++) { const x = r1(p[i][0] + (p[i + 1][0] - p[i][0]) * k / n), z = r1(p[i][1] + (p[i + 1][1] - p[i][1]) * k / n); if (inside(x, z, MARG - 5) && bldAt(x, z) < 0 && !onRoad(x, z, .3)) M.trees.push(x, z); } } });
 if (M.trees.length > 14000) M.trees.length = 14000;
+
+// =====================================================================================================
+// 12b. Muros, vallas, setos y muros de contención (barrier=*), con su altura si el mapa la trae
+// =====================================================================================================
+// t: w muro, f valla (fr barandilla), h seto, r muro de contención (lo bajo queda a la derecha del sentido de la vía), j new jersey, g bionda
+// Se quitan los que van pegados a la fachada de un edificio y se cortan en las puertas (nodos barrier=gate, lift_gate, entrance…)
+// grúas pórtico (man_made=crane con su carril dibujado como polígono): centro, rumbo, largo y ancho del carril
+M.cranes = []; ways.forEach(w => { const t = w.tags; if (t.man_made !== 'crane' || !/gantry|portal/.test(t['crane:type'] || 'gantry')) return; const p = pts(w); if (p.length < 4) return; let cx = 0, cz = 0; p.forEach(q => { cx += q[0]; cz += q[1]; }); cx /= p.length; cz /= p.length; let sxx = 0, szz = 0, sxz = 0; p.forEach(q => { const dx = q[0] - cx, dz = q[1] - cz; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; }); const a = .5 * Math.atan2(2 * sxz, sxx - szz), ux = Math.cos(a), uz = Math.sin(a); let l0 = 1e9, l1 = -1e9, w0 = 1e9, w1 = -1e9; p.forEach(q => { const u = (q[0] - cx) * ux + (q[1] - cz) * uz, v = -(q[0] - cx) * uz + (q[1] - cz) * ux; l0 = Math.min(l0, u); l1 = Math.max(l1, u); w0 = Math.min(w0, v); w1 = Math.max(w1, v); }); M.cranes.push([r1(cx), r1(cz), r2(a), r1(l0), r1(l1), r1(w1 - w0)]); });
+M.lift = []; ntags.forEach(n => { const t = n.tags; if (t.highway !== 'elevator' || t.indoor === 'yes' || t.railway || num(t.level) < 0) return; const x = px(n), z = pz(n); if (inside(x, z, 0) && bldAt(x, z) < 0) M.lift.push(r1(x), r1(z)); });
+M.bar = [];
+const clipLine = p => { const X = HX + MARG, Z = HZ + MARG, runs = []; let run = null; for (let i = 0; i + 1 < p.length; i++) { const a = p[i], b = p[i + 1], c = clipSeg(a, b, X, Z); if (!c) { run = null; continue; } const A = c[0] > 0 ? [a[0] + (b[0] - a[0]) * c[0], a[1] + (b[1] - a[1]) * c[0]] : a, B = c[1] < 1 ? [a[0] + (b[0] - a[0]) * c[1], a[1] + (b[1] - a[1]) * c[1]] : b; if (!run || c[0] > 0) { run = [A]; runs.push(run); } run.push(B); if (c[1] < 1) run = null; } return runs; };
+{ const KIND = { wall: 'w', city_wall: 'w', fence: 'f', hedge: 'h', retaining_wall: 'r', jersey_barrier: 'j', guard_rail: 'g', handrail: 'f' };
+  const gate = new Set(); ntags.forEach(n => { const t = n.tags; if (/^(gate|lift_gate|swing_gate|sliding_gate|entrance|turnstile|kissing_gate|stile|chain|bollard|block)$/.test(t.barrier || '') || t.entrance) gate.add(n.id); });
+  let nb = 0, nOff = 0;
+  ways.forEach(w => { const t = w.tags, k = KIND[t.barrier]; if (!k || t.building || t.highway || t.location === 'underground') return;
+    const all = pts(w); if (all.length < 2) return; let runs = [[]];
+    all.forEach(q => { if (gate.has(q[2])) { runs[runs.length - 1].push(q); runs.push([q]); } else runs[runs.length - 1].push(q); });
+    const h0 = num(t.height), mat = t['wall'] || t.material || t['fence:material'] || '', ft = t.fence_type || '';
+    runs.forEach(run => { if (run.length < 2) return; let q = clipLine(run.map(v => [v[0], v[1]])); q.forEach(seg => { seg = simplify(seg, .25); if (seg.length < 2) return;
+      // ¿va pegado a una fachada? (muros que en el mapa son la pared de un edificio o la valla de su patio)
+      let near = 0, tot = 0; for (let i = 0; i + 1 < seg.length; i++) { const a = seg[i], b = seg[i + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.round(l / 2)); for (let j = 0; j <= n; j++) { const x = a[0] + (b[0] - a[0]) * j / n, z = a[1] + (b[1] - a[1]) * j / n; tot++; const hit = wallGrid.near(x, z, .7); if (hit || bldAt(x, z) >= 0) near++; } }
+      if (near > tot * .6) { nOff++; return; }
+      const o = { t: k, p: flat(seg.map(v => [r1(v[0]), r1(v[1])])) }; if (h0 > .2 && h0 < 8) o.h = r1(h0);
+      if (k === 'f' && /railing|metal|bars/.test(ft + mat)) o.t = 'fr'; if (k === 'w') { const m2 = /brick/.test(mat) ? 'b' : /stone|rock/.test(mat) ? 's' : ''; if (m2) o.m = m2; }
+      M.bar.push(o); nb++; }); }); });
+  console.log('  muros y vallas: ' + nb + ' tramos (' + nOff + ' pegados a fachadas, fuera)'); }
 
 // =====================================================================================================
 // 13. Comercios (con su sitio en la fachada), barrios, metro y tren, hitos

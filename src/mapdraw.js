@@ -8,10 +8,10 @@ const COL = { out: '#c9d8bb', land: '#ece7db', water: '#9cc3dd', bld: '#cdc2b0',
 const GCOL = { ind: '#dedbd3', yard: '#eadfc8', dirt: '#dccfb6', grass: '#cfe5b8', allot: '#d6dfa8', park: '#b9dba0', wood: '#9fcf8a', cem: '#c3d6b4', lot: '#d8d8d2', plaza: '#f3eedf', paved: '#e4e1d8', play: '#f0cfa0', pool: '#8fd0f0', pitch: '#8fd3a0' }, GORD = ['ind', 'yard', 'dirt', 'grass', 'allot', 'park', 'wood', 'cem', 'lot', 'plaza', 'paved', 'pitch', 'play', 'pool'];
 
 function index() {
-  if (idx) return idx; const M = W.map, C = 128, g = { C, bld: new Map(), green: new Map(), water: new Map(), road: new Map(), rail: new Map() };
+  if (idx) return idx; const M = W.map, C = 128, g = { C, bld: new Map(), green: new Map(), water: new Map(), road: new Map(), rail: new Map(), bar: new Map() };
   const put = (m, b, item) => { const x0 = Math.max(-40, Math.floor(b[0] / C)), x1 = Math.min(40, Math.floor(b[2] / C)), z0 = Math.max(-40, Math.floor(b[1] / C)), z1 = Math.min(40, Math.floor(b[3] / C)); for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) { const k = x * 100003 + z; let l = m.get(k); if (!l) m.set(k, l = []); l.push(item); } };
   M.bld.forEach(b => put(g.bld, bboxOf(b.p), b)); (M.green || []).forEach(a => put(g.green, bboxOf(a.p), a)); W.water.forEach(w => put(g.water, w.b, w));
-  M.roads.forEach(r => { if (ROAD[r.t]) put(g.road, bboxOf(r.p), r); }); (M.rail || []).forEach(p => put(g.rail, bboxOf(p), p)); return idx = g;
+  M.roads.forEach(r => { if (ROAD[r.t]) put(g.road, bboxOf(r.p), r); }); (M.rail || []).forEach(p => put(g.rail, bboxOf(p), p)); (M.bar || []).forEach(b => put(g.bar, bboxOf(b.p), b)); return idx = g;
 }
 // curvas de nivel cada 10 m (el relieve, en el plano): se sacan una vez de la malla del terreno y se guardan por casillas
 let iso = null;
@@ -40,6 +40,7 @@ function render(level, tx, tz) {
   [0, 1].forEach(pass => roads.forEach(r => { const sp = ROAD[r.t]; if (!sp[3] || big(r) !== !!pass) return; if (level === 0 && (r.t === 'service' || r.t === 'track')) return; path(c, r.p); c.strokeStyle = pass ? COL.mainCase : COL.casing; c.lineWidth = Math.max(minW, r.w) + 1.6 / s; c.stroke(); }));
   [0, 1].forEach(pass => roads.forEach(r => { const sp = ROAD[r.t]; if (!sp[3] || big(r) !== !!pass) return; if (level === 0 && (r.t === 'service' || r.t === 'track')) return; path(c, r.p); c.strokeStyle = pass ? COL.main : COL.road; c.lineWidth = Math.max(minW, r.w); c.stroke(); }));
   near(idx.rail, X0, Z0, X1, Z1).forEach(p => { path(c, p); c.strokeStyle = COL.rail; c.lineWidth = Math.max(minW * .7, 1.2); c.setLineDash([6, 4]); c.stroke(); c.setLineDash([]); });
+  if (level > 0) near(idx.bar, X0, Z0, X1, Z1).forEach(b => { path(c, b.p); c.strokeStyle = b.t === 'h' ? '#7fa866' : b.t === 'f' || b.t === 'fr' ? '#8a9086' : '#a59d8e'; c.lineWidth = Math.max(.8 / s, b.t === 'h' ? .9 : .4); c.stroke(); });      /* muros, vallas y setos */
   near(idx.bld, X0, Z0, X1, Z1).forEach(b => { path(c, b.p, true); c.fillStyle = b.k === 'ind' || b.k === 'shed' || b.k === 'tank' || b.k === 'roof' ? COL.bldInd : b.k === 'civic' ? COL.bldCiv : COL.bld; c.fill(); if (level > 1) { c.strokeStyle = '#a89c88'; c.lineWidth = .7 / s; c.stroke(); } });
   return cv;
 }

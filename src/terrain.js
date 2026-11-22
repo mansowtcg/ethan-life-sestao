@@ -162,12 +162,25 @@ export function initTerrain(M, ways, ext, aprons) {
       for (const q of pts) { if (hull.length && q[0] - hull[hull.length - 1][0] < 1e-6) { if (q[1] > hull[hull.length - 1][1] && hull.length > 1) hull[hull.length - 1] = q; continue; } while (hull.length >= 2) { const a = hull[hull.length - 2], b = hull[hull.length - 1]; if ((b[0] - a[0]) * (q[1] - a[1]) - (b[1] - a[1]) * (q[0] - a[0]) >= 0) hull.pop(); else break; } hull.push(q); }
       const at = s => { s = cl(s, 0, 1); let k = 0; while (k < hull.length - 2 && hull[k + 1][0] < s) k++; const a = hull[k], b = hull[k + 1]; return a[1] + (b[1] - a[1]) * (s - a[0]) / (b[0] - a[0] || 1); }, dl = Math.min(.2, 4 / c.Lt);
       c.hull = hull; c.anch = [cnt[c.A], cnt[c.B]]; c.at = s => s < dl || s > 1 - dl ? at(s) : (at(s - dl) + 2 * at(s) + at(s + dl)) / 4; }); };
+  // escaleras: el mapa dice hacia dónde suben (incline) y a veces cuántos peldaños tienen. Con la malla de 25 m dos calles a distinto
+  // nivel unidas por una escalera salían casi a la misma altura: la escalera empuja para que arriba quede más alto, lo que suben sus
+  // peldaños (17 cm cada uno) o, si no se sabe, algo menos de un tercio de su largo. Si un extremo va atado a una calle, empuja a la calle
+  const stc = [], psOf = new Map(); pslaves.forEach(q => psOf.set(q[0], q));
+  W.forEach(o => { const r = o.w.r; if (!r || (r.t !== 'steps' && !r.cv) || o.bridge || !r.inc || o.v.length < 2) return; const n = o.v.length; let L = 0; for (let k = 1; k < n; k++) L += Math.hypot(o.x[k] - o.x[k - 1], o.z[k] - o.z[k - 1]); if (L < 2.5) return;
+    const rise = r.sc ? r.sc * .165 : cl(L * .26, .7, 4.5), a = o.v[0], b = o.v[n - 1]; if (a !== b) stc.push(r.inc > 0 ? [a, b, rise] : [b, a, rise]); });
+  const bump = (id, e) => { const q = psOf.get(id); if (q) { H[q[1]] += e; H[q[2]] += e; } else H[id] += e; };
+  const lift = f => { for (const q of stc) { const dh = H[q[1]] - H[q[0]]; if (dh < q[2]) { const e = (q[2] - dh) * f / 2; bump(q[1], e); bump(q[0], -e); } } };
+  T.nStc = stc.length;
+  // nada se aleja demasiado del terreno de verdad: como mucho 7 m por debajo (un paso inferior en trinchera) y 10 m por encima.
+  // Sin este tope, una calle con pasarelas por encima podía hundirse más de 25 m arrastrando a las de alrededor
+  const H0 = Float32Array.from(H), keep = () => { for (let i = 0; i < H.length; i++) { const lo = H0[i] - 7, hi = H0[i] + 10; if (H[i] < lo) H[i] = lo; else if (H[i] > hi) H[i] = hi; } };
   for (let it = 0; it < NIT; it++) {
-    slave(); if (it < NIT - 12) relax(cross); relax(segs);
+    slave(); if (it < NIT - 10) lift(.85); if (it < NIT - 12) relax(cross); relax(segs);
     // el tablero tiene que poder subir hasta salvar cada obstáculo con su pendiente máxima: si no llega, el obstáculo baja y el estribo sube
     for (let s = 0; s < clrs.length; s++) { const q = clrs[s], ch = q[0], need = H[q[2]] + q[3] + .3, eA = need - H[ch.A] - ch.mb * Math.max(0, q[1] - q[5]) * ch.Lt; if (eA > 0) { sink(q[2], eA * q[4]); H[ch.A] += eA * (1 - q[4]); } const eB = H[q[2]] + q[3] + .3 - H[ch.B] - ch.mb * Math.max(0, 1 - q[1] - q[5]) * ch.Lt; if (eB > 0) { sink(q[2], eB * q[4]); H[ch.B] += eB * (1 - q[4]); } }
-    if (it < NIT - 4) smoothG(it < 40 ? 1.3 : .8);
+    if (it < NIT - 4) smoothG(it < 40 ? 1.3 : .8); keep();
   }
+  { let lo = 0, hi = 0; const L = []; for (let i = 0; i < H.length; i++) { const d = H[i] - H0[i]; if (d < -6.9) { lo++; L.push([Math.round(NX[i]), Math.round(NZ[i]), Math.round(d)]); } else if (d > 9.9) { hi++; L.push([Math.round(NX[i]), Math.round(NZ[i]), Math.round(d)]); } } T.dev = { lo, hi, at: L.filter((q, k) => k % 7 === 0).slice(0, 30) }; }
   T.nCross = nCross; T.nClr = clrs.length;
   // nudos donde se juntan tres o más tramos de puente sin tocar ninguna calle: a la media de adonde llevan
   { const hub = new Set(); chains.forEach(c => [c.A, c.B].forEach(id => { if (!cnt[id] && chains.filter(q => q.A === id || q.B === id).length > 1) hub.add(id); }));
@@ -248,7 +261,7 @@ export function initTerrain(M, ways, ext, aprons) {
     let a = 1e9, b = 1e9, c = -1e9, e = -1e9; for (let k = 0; k < p.length; k += 2) { a = Math.min(a, p[k]); c = Math.max(c, p[k]); b = Math.min(b, p[k + 1]); e = Math.max(e, p[k + 1]); }
     const i0 = Math.max(0, Math.ceil((a - T.x0) / d)), i1 = Math.min(nx - 1, Math.floor((c - T.x0) / d)), j0 = Math.max(0, Math.ceil((b - T.z0) / d)), j1 = Math.min(nz - 1, Math.floor((e - T.z0) / d));
     for (let j = j0; j <= j1; j++) { const z = T.z0 + j * d, xs = []; for (let k = 0, n = p.length / 2, q = n - 1; k < n; q = k++) { const zi = p[k * 2 + 1], zj = p[q * 2 + 1]; if ((zi > z) !== (zj > z)) xs.push((p[q * 2] - p[k * 2]) * (z - zi) / (zj - zi) + p[k * 2]); } xs.sort((u, v) => u - v);
-      for (let s = 0; s + 1 < xs.length; s += 2) for (let i = Math.max(i0, Math.ceil((xs[s] - T.x0) / d)); i <= i1 && T.x0 + i * d <= xs[s + 1]; i++) { const n = j * nx + i; if (dmin[n] > 2) { hG[n] = lv; tr[n] = 0; } } }
+      for (let s = 0; s + 1 < xs.length; s += 2) for (let i = Math.max(i0, Math.ceil((xs[s] - T.x0) / d)); i <= i1 && T.x0 + i * d <= xs[s + 1]; i++) { const n = j * nx + i; if (dmin[n] > 2) { hG[n] = lv - 1.4; tr[n] = 0; } } }      /* el lecho, por debajo de la lámina (la lámina se dibuja plana aparte) */
     return lv; });
   // la malla bajo el firme va algo más baja que él (zanja) para que nunca asome; donde el suelo hace un pliegue brusco, más honda
   const hM = T.hM = new Float32Array(N); for (let j = 0, n = 0; j < nz; j++) for (let i = 0; i < nx; i++, n++) { if (!tr[n]) { hM[n] = hG[n]; continue; } let c = 0; if (dmin[n] < 1 && i > 0 && j > 0 && i < nx - 1 && j < nz - 1) { const h = hG[n]; c = Math.max(Math.abs((hG[n - 1] + hG[n + 1]) / 2 - h), Math.abs((hG[n - nx] + hG[n + nx]) / 2 - h), Math.abs((hG[n - nx - 1] + hG[n + nx + 1]) / 2 - h), Math.abs((hG[n - nx + 1] + hG[n + nx - 1]) / 2 - h)); } hM[n] = hG[n] - TRENCH - Math.min(1.5, c * 1.3); }

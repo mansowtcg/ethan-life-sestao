@@ -59,6 +59,7 @@ function nightIn(id, title, ic, msg, go, okMsg, koMsg) {
     tick() { if (G.mode === 'foot' && dist(h.x, h.z) < 3.2) { endMission(true, okMsg); go(); } }, timeout() { endMission(false, koMsg); } });
   goal({ x: h.x, z: h.z }, 'Casa de Ethan', ic); banner(ic + ' ' + title, msg, 4400); sfx('ok');
 }
+const feedTaper = () => { const S = G.S; S.hunger = Math.min(100, S.hunger + 30); };
 const plen = p => { let l = 0; for (let i = 1; i < p.length; i++) l += Math.hypot(GR.x[p[i]] - GR.x[p[i - 1]], GR.z[p[i]] - GR.z[p[i - 1]]); return l; };
 const START = {
   // Ali necesita repartidor: varias entregas contrarreloj
@@ -112,6 +113,24 @@ const START = {
     Object.assign(M, { title: 'Favor: acercar a ' + who, t: d / 7 + 40, text: () => q.n + ' · ' + Math.round(dist(q.x, q.z)) + ' m',
       tick() { if (dist(q.x, q.z) < 11 && G.mode === 'car' && slow()) endMission(true, 'Le has dejado en ' + q.n + '. «Te debo una.»', 14 + Math.round(d / 55)); }, timeout() { endMission(false, 'Se ha cansado de esperar y ha seguido andando.'); } });
     goal({ x: q.x, z: q.z }, q.n, '🙋'); banner('Favor', 'Lleva a ' + who + ' a ' + q.n + '.'); sfx('ok');
+  },
+  // buzoneo: folletos en cinco portales del barrio, andando (con las cuestas y las escaleras de Sestao), contra reloj
+  buzon() {
+    const h = SP.by.home; if (!h || G.mode === 'car') { if (G.mode === 'car') toast('El buzoneo se hace andando. Bájate del coche.', '📬'); return false; } const C = SP.cand.filter(c => { const d = Math.hypot(c.mx - h.x, c.mz - h.z); return d > 60 && d < 330; }); if (C.length < 8) return false;
+    const pick = []; for (let t = 0; t < 400 && pick.length < 5; t++) { const c = C[Math.floor(Math.random() * C.length)]; if (pick.some(q => Math.hypot(q.mx - c.mx, q.mz - c.mz) < 45)) continue; pick.push(c); } if (pick.length < 5) return false;
+    let L = 0, px = G.px, pz = G.pz; const ord = []; const left = pick.slice(); while (left.length) { left.sort((a, b) => Math.hypot(a.mx - px, a.mz - pz) - Math.hypot(b.mx - px, b.mz - pz)); const c = left.shift(); L += Math.hypot(c.mx - px, c.mz - pz) * 1.35; px = c.mx; pz = c.mz; ord.push(c); }
+    G.S.daily.buzon = 1; const at = c => ({ x: c.mx + c.nx * 1.6, z: c.mz + c.nz * 1.6 });
+    Object.assign(M, { title: 'Buzoneo', t: 45 + L / 2.6, k: 0, text: () => 'Portal ' + (M.k + 1) + ' de 5' + (streetAt(M.goal.x, M.goal.z) ? ' · ' + streetAt(M.goal.x, M.goal.z) : '') + ' · ' + Math.round(dist(M.goal.x, M.goal.z)) + ' m',
+      tick() { if (G.mode !== 'foot') return; if (dist(M.goal.x, M.goal.z) < 2.6) { M.k++; sfx('ui'); if (M.k >= 5) { endMission(true, 'Cinco portales, cero perros. La de la imprenta paga en mano.', 18); moment('buzon'); return; } toast('Folletos dentro. ' + (5 - M.k) + ' portales más.', '📬'); goal(at(ord[M.k]), 'Portal ' + (M.k + 1), '📬'); } },
+      timeout() { const pay = M.k * 3; endMission(false, 'Se acabó el tiempo: ' + M.k + ' de 5 portales.', pay || undefined); } });
+    goal(at(ord[0]), 'Portal 1', '📬'); banner('📬 Buzoneo', 'Cinco portales del barrio, andando. Las escaleras son atajos.', 3600); sfx('ok');
+  },
+  // la vecina del cuarto: su receta en una farmacia y de vuelta al portal de casa
+  vecina() {
+    const h = SP.by.home; if (!h) return false; const F = ST.pois.filter(p => p.c === 'pharm' && Math.hypot(p.x - h.x, p.z - h.z) > 120 && Math.hypot(p.x - h.x, p.z - h.z) < 900); if (!F.length) return false; F.sort((a, b) => Math.hypot(a.x - h.x, a.z - h.z) - Math.hypot(b.x - h.x, b.z - h.z)); const f = F[Math.floor(Math.random() * Math.min(3, F.length))]; G.S.daily.vecina = 1;
+    Object.assign(M, { title: 'La receta de la vecina', t: 150 + routeLen(h.x, h.z, f.x, f.z) / 2.5, st: 0, text: () => (M.st ? 'Súbele la receta a la vecina' : 'Recoge la receta en la farmacia' + (streetAt(f.x, f.z) ? ' (' + streetAt(f.x, f.z) + ')' : '')) + ' · ' + Math.round(dist(M.goal.x, M.goal.z)) + ' m',
+      tick() { if (dist(M.goal.x, M.goal.z) < (G.mode === 'car' ? M.goal.r : 3) && slow()) { if (!M.st) { M.st = 1; toast('La receta, en su bolsita. «Dígale que se la tome con comida.»', '💊'); goal({ x: h.x, z: h.z, r: farOf(h, 9) }, 'Casa de Ethan', '🏠'); } else { endMission(true, '«Ay, majo, qué haría yo sin ti.» Te da un táper de croquetas.', 6); feedTaper(); } } } });
+    goal({ x: f.x, z: f.z, r: farOf(f, 9) }, 'Farmacia', '💊'); banner('La vecina del cuarto', 'Su receta está en la farmacia. Luego, se la subes.'); sfx('ok');
   },
   // Lourdes quiere pan del día: se compra en una panadería del mapa
   pan() {

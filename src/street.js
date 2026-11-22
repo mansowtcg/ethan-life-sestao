@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { Vox, mat, voxText } from './vox.js';
 import { W, ROAD, Geo, instChunks, addProp, collide, inBuilding, inWaterPoly, inPoly, roadNear, bboxOf, canvasTex, nearJunc } from './world.js';
 import { rng } from './util.js';
+import { GR } from './graph.js';
 import { standY, deckY, gY } from './terrain.js';
 
 export const ST = { pois: [], pgrid: new Map(), transit: [], lights: [], stops: [], cars: 0 };
@@ -106,7 +107,7 @@ export const CAT = {
   bar: ['#7a1f2b', 'Bar', '🍺'], cafe: ['#5a3a22', 'Cafetería', '☕'], rest: ['#8a2a1a', 'Restaurante', '🍽️'], fast: ['#c4302a', 'Comida rápida', '🍔'], super: ['#1f6f3a', 'Supermercado', '🛒'], bakery: ['#b8742a', 'Panadería', '🥖'], food: ['#3a7a3a', 'Alimentación', '🥬'],
   pharm: ['#1f8a4a', 'Farmacia', '💊'], bank: ['#1f3f7a', 'Banco', '🏧'], fuel: ['#c85a1a', 'Gasolinera', '⛽'], tobacco: ['#6a4a1a', 'Estanco', '📰'], lottery: ['#1a5a9a', 'Loterías', '🍀'], hair: ['#7a3a7a', 'Peluquería', '💈'], clothes: ['#2a2a2a', 'Tienda de ropa', '👕'],
   shop: ['#3a4a5a', 'Tienda', '🛍️'], garage: ['#4a4a4a', 'Taller', '🔧'], health: ['#2a7a8a', 'Salud', '🩺'], hotel: ['#3a2a5a', 'Alojamiento', '🛏️'], sport: ['#2a5a8a', 'Deporte', '🏋️'], police: ['#1a2a5a', 'Policía', '🚓'], town: ['#5a1a1a', 'Ayuntamiento', '🏛️'],
-  civic: ['#4a3a2a', 'Servicio público', '🏛️'], church: ['#4a4a3a', 'Iglesia', '⛪'], office: ['#3a3a3a', 'Oficina', '💼'], school: ['#2a4a3a', 'Centro escolar', '🏫']
+  civic: ['#4a3a2a', 'Servicio público', '🏛️'], lift: ['#3a5a7a', 'Ascensor público', '🛗'], fronton: ['#2a5a8a', 'Frontón', '🎾'], campo: ['#2a6a3a', 'Campo de fútbol', '⚽'], church: ['#4a4a3a', 'Iglesia', '⛪'], office: ['#3a3a3a', 'Oficina', '💼'], school: ['#2a4a3a', 'Centro escolar', '🏫']
 };
 function poiSigns(M, root, q, far) {
   const P = (M.poi || []).filter(p => p.length >= 7), N = P.length; if (!N) return; const COLS = 8, CW = 256, CH = 40, rows = Math.ceil(N / COLS), TH = Math.min(2048, Math.pow(2, Math.ceil(Math.log2(rows * CH)))), vis = Math.min(N, Math.floor(TH / CH) * COLS);
@@ -122,6 +123,26 @@ function poiSigns(M, root, q, far) {
     if (p[2] === 'pharm') { crossAt.push([ax + nx * .5, az + nz * .5, p[6], Math.min(h - .9, 3.9)]); nCross++; }
     // puerta: un paso por delante de la fachada
     const dx = ax + nx * 1.5, dz = az + nz * 1.5; if (!inBuilding(dx, dz) && !inWaterPoly(dx, dz)) { const o = { x: dx, z: dz, ax, az, c: p[2], n: p[3], yaw: p[6], i: ST.pois.length }; ST.pois.push(o); const kk = key(Math.floor(dx / 20), Math.floor(dz / 20)); let l = ST.pgrid.get(kk); if (!l) ST.pgrid.set(kk, l = []); l.push(o); } }
+  // frontones y campos de fútbol del mapa: se puede jugar un rato (el sitio para pulsar E, en el borde del campo que da a un camino o una calle)
+  (M.green || []).forEach(g => { if (g.k !== 'pitch' || (g.s !== 'pelota' && g.s !== 'soccer')) return; const q = g.p, n = q.length / 2; let cx = 0, cz = 0, best = null; for (let k = 0; k < n; k++) { cx += q[k * 2]; cz += q[k * 2 + 1]; } cx /= n; cz /= n;
+    for (let k = 0; k < n; k++) { const x = q[k * 2] + (cx - q[k * 2]) * .12, z = q[k * 2 + 1] + (cz - q[k * 2 + 1]) * .12, d = roadNear(x, z, 40, false).d; if (!inBuilding(x, z) && !inWaterPoly(x, z) && (!best || d < best[2])) best = [x, z, d]; }
+    if (!best) return; const o = { x: best[0], z: best[1], ax: cx, az: cz, c: g.s === 'pelota' ? 'fronton' : 'campo', n: g.n || (g.s === 'pelota' ? 'Frontón' : 'Campo de fútbol'), yaw: 0, i: ST.pois.length, pitch: 1 }; ST.pois.push(o); const kk = key(Math.floor(o.x / 20), Math.floor(o.z / 20)); let l = ST.pgrid.get(kk); if (!l) ST.pgrid.set(kk, l = []); l.push(o); });
+  // grúa pórtico del astillero (la Goliat de La Naval), a horcajadas sobre su carril: patas, viga, carro y luces de balizamiento
+  (M.cranes || []).forEach(c => { const a = c[2], ux = Math.cos(a), uz = Math.sin(a), B = M.bbox; let u = Math.min(c[4] - 40, Math.max(c[3] + 40, (c[3] + c[4]) / 2 + 60)); for (let k = 0; k < 20; k++) { const x = c[0] + ux * u, z = c[1] + uz * u; if (x > B[0] + 40 && x < B[2] - 40 && z > B[1] + 40 && z < B[3] - 40) break; u += (c[4] - u) * .25; }
+    const x = c[0] + ux * u, z = c[1] + uz * u, y = standY(x, z, -1e9) - .2, half = c[5] / 2, H = 64, RED = 0xc8372d, WH = 0xe9e6dc, v = new Vox(); v.at(x, y, z, -a);
+    for (const sv of [-1, 1]) { const vz = sv * half; v.box(0, 0, vz, 16, 2.2, 3.2, 0x55595e); for (const su of [-1, 1]) { const x0 = su * 6.5; for (let k = 0; k < 8; k++) { const f0 = k / 8, f1 = (k + 1) / 8, xa = x0 * (1 - f0 * .6), xb = x0 * (1 - f1 * .6); v.bx(Math.min(xa, xb) - .9, 2.2 + (H - 6) * f0, vz - .9, Math.max(xa, xb) + .9, 2.2 + (H - 6) * f1 + .05, vz + .9, RED); } }
+      for (let k = 1; k < 6; k++) v.box(0, 2.2 + (H - 6) * k / 6, vz, 13 * (1 - k / 6 * .6) + 1.6, .6, .5, RED); }
+    v.bx(-4.2, H - 4, -half - 14, 4.2, H + 1.5, half + 14, WH, { top: 0xbfbcb2 }); v.bx(-4.3, H - 3.6, -half - 14.1, 4.3, H - 2.4, half + 14.1, RED);
+    v.box(0, H + 1.5, half * .3, 7.5, 4.2, 9, 0xd9d6cb, { top: 0x9a978e }); v.box(0, H + 5.7, half * .3, 1.2, 1.2, 1.2, 0xff3b30); v.box(0, H + 1.5, -half - 13, 1, 1, 1, 0xff3b30); v.box(0, H + 1.5, half + 13, 1, 1, 1, 0xff3b30);
+    for (const sv of [-1, 1]) v.box(0, H - 9, sv * 3, .25, 6, .25, 0x2a2e33); v.box(0, H - 10.5, 0, 3.2, 1.5, 6.6, 0xe0b23a);
+    v.at(); const m = v.mesh('lit', 3); root.add(m); addProp(x + uz * half, z - ux * half, 2.2, 'crane'); addProp(x - uz * half, z + ux * half, 2.2, 'crane'); });
+  // ascensores públicos: una torre de cristal y acero; con E se sube o se baja al otro nivel (el punto de la red de calles a menos de 40 m
+  // con más desnivel). Si no hay otro nivel cerca, solo se dibuja
+  { const L = M.lift || [], v = new Vox(); for (let k = 0; k < L.length; k += 2) { const x = L[k], z = L[k + 1], y = standY(x, z, -1e9); let best = null;
+      for (let n = 0; n < GR.x.length; n++) { const dx = GR.x[n] - x, dz = GR.z[n] - z; if (dx * dx + dz * dz > 1600 || dx * dx + dz * dz < 9) continue; const h = standY(GR.x[n], GR.z[n], -1e9), d = Math.abs(h - y); if (d > 3.2 && (!best || d > best[3])) best = [GR.x[n], GR.z[n], h, d]; }
+      const top = best ? Math.max(y, best[2]) : y + 4, bot = best ? Math.min(y, best[2]) : y; v.box(x, bot - .3, z, 2.4, top - bot + 3.3, 2.4, 0x9fc4d2, { top: 0x3b4842 }); v.box(x, top + 2.9, z, 2.7, .3, 2.7, 0x3b4842); v.box(x, bot - .3, z + 1.22, .9, 2.4, .06, 0x23272b);
+      if (!best) continue; const o = { x: x + 1.7, z, ax: x, az: z, c: 'lift', n: best[2] > y ? 'Ascensor (sube ' + Math.round(best[3]) + ' m)' : 'Ascensor (baja ' + Math.round(best[3]) + ' m)', yaw: 0, i: ST.pois.length, to: [best[0], best[1]] }; ST.pois.push(o); const kk = key(Math.floor(o.x / 20), Math.floor(o.z / 20)); let l = ST.pgrid.get(kk); if (!l) ST.pgrid.set(kk, l = []); l.push(o); addProp(x, z, 1.3, 'lift'); }
+    if (L.length) root.add(v.mesh('lit', 3)); }
   chunks.forEach(g => { const mesh = new THREE.Mesh(g.build(), m); mesh.matrixAutoUpdate = false; root.add(mesh); });
   if (nCross) { crossG.box(0, 0, 0, .14, .62, .2, 0x3cff6a); crossG.box(0, .21, 0, .14, .2, .62, 0x3cff6a); instChunks(root, crossG.geometry(), mat('glowfog'), crossAt, { far: 260 * far }); }
   void q;

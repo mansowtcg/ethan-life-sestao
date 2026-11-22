@@ -158,7 +158,7 @@ function addBuilding(ch, b, idx, shops) {
   let p = b.p, n = p.length / 2; if (n > 3 && p[0] === p[n * 2 - 2] && p[1] === p[n * 2 - 1]) n--; if (n < 3) return;
   let a2 = 0; const ring = []; for (let k = 0; k < n; k++) { const j = (k + 1) % n; a2 += p[k * 2] * p[j * 2 + 1] - p[j * 2] * p[k * 2 + 1]; ring.push([p[k * 2], p[k * 2 + 1]]); }
   if (Math.abs(a2) < 8) return; if (a2 < 0) ring.reverse(); const A2 = Math.abs(a2) / 2;
-  const h = Math.max(2.6, b.h || 10), kind = b.k || 'res', r = rng(idx * 7919 + 13), plainK = kind === 'ind' || kind === 'stand' || kind === 'chimney' || kind === 'tank' || kind === 'shed';
+  const h = Math.max(2.6, b.h || 10), kind = b.k || (b.ty === 'ch' && (b.h || 10) < 24 ? 'civic' : 'res'), r = rng(idx * 7919 + 13), plainK = kind === 'ind' || kind === 'stand' || kind === 'chimney' || kind === 'tank' || kind === 'shed';
   const flat = []; ring.forEach(q => flat.push(q[0], q[1]));
   // con relieve: el edificio se asienta a la altura del suelo de su perímetro (hacia la parte baja) y un zócalo lo lleva hasta el punto más hondo
   let yb = 0, plinth = 0; const gH = [], mk = [ch.wall.nv, ch.base.nv, ch.plain.nv, ch.glass.nv];
@@ -244,6 +244,14 @@ function addBuilding(ch, b, idx, shops) {
     const f2 = []; top.forEach(q => f2.push(q[0], q[1])); polyFlat(g, f2, ht, shade(rc, .9)); }
   else polyFlat(ch.plain, flat, h, rcTag >= 0 ? rcTag : plainK ? (r() < .06 ? 0x8c5a4a : shade(fc, .78)) : tile ? ROOF_T[Math.floor(r() * ROOF_T.length)] : kind === 'civic' ? 0x8a8478 : ROOF_F[Math.floor(r() * ROOF_F.length)]);      /* planta complicada: tapa plana, pero del color de la teja (desde arriba, casi todo Sestao es rojo) */
   if (!plainK && !ins && h > 9 && A2 > 300) { let cx = 0, cz = 0; ring.forEach(q => { cx += q[0]; cz += q[1]; }); cx /= n; cz /= n; if (inPoly(flat, cx, cz)) { const v = new Vox(); v.box(cx, h, cz, 3.4, 2.4, 3.4, 0xb9b3a6, { top: 0x6a6e74 }); ch.plain.add(v); } }   // casetón en la azotea
+  // iglesias: torre del campanario con sus huecos y su chapitel, en la punta del edificio que da a la calle
+  if (b.ty === 'ch' && kind !== 'roof' && A2 > 120 && n <= 40) { let cx = 0, cz = 0; ring.forEach(q => { cx += q[0]; cz += q[1]; }); cx /= n; cz /= n; let sxx = 0, szz = 0, sxz = 0; ring.forEach(q => { const dx = q[0] - cx, dz = q[1] - cz; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; });
+    const ang = .5 * Math.atan2(2 * sxz, sxx - szz), ux = Math.cos(ang), uz = Math.sin(ang); let lo = 1e9, hi = -1e9; ring.forEach(q => { const t = (q[0] - cx) * ux + (q[1] - cz) * uz; lo = Math.min(lo, t); hi = Math.max(hi, t); });
+    const sd = Math.max(4, Math.min(7.5, Math.sqrt(A2) * .24)), e1 = [cx + ux * (hi - sd / 2), cz + uz * (hi - sd / 2)], e0 = [cx + ux * (lo + sd / 2), cz + uz * (lo + sd / 2)], d1 = roadNear(e1[0], e1[1], 30, false).d, d0 = roadNear(e0[0], e0[1], 30, false).d, e = d0 < d1 ? e0 : e1;
+    const H = Math.min(46, Math.max(24, h + 16, h * 2.1)), stone = 0xcfc6b2, v = new Vox(); v.at(e[0], 0, e[1], -ang);
+    v.box(0, 0, 0, sd, H, sd, stone, { top: 0x6a6e74 }); v.box(0, H - 4.6, 0, sd + .12, 2.6, sd * .34, 0x2a2e33); v.box(0, H - 4.6, 0, sd * .34, 2.6, sd + .12, 0x2a2e33); v.box(0, H - .5, 0, sd + .5, .5, sd + .5, 0xb9b09c);
+    for (let k = 0; k < 6; k++) { const f = 1 - (k + 1) / 7; v.box(0, H + k * sd * .3, 0, sd * f, sd * .3, sd * f, 0x55606a); } v.box(0, H + 6 * sd * .3, 0, .12, 1.6, .12, 0x2a2e33); v.box(0, H + 6 * sd * .3 + 1, 0, .8, .12, .12, 0x2a2e33);
+    v.at(); ch.plain.add(v); }
   plinth = plainK ? shade(fc, .58) : 0; settle();
 }
 
@@ -401,10 +409,12 @@ function terrainMeshes(L, areas, addMesh, bb, mg) {
         if (ar >= FULL) { own[c] = own[c + 1] = ai + 1; continue; }
         const tr = [clipHalf(cell, -1, 1, z - x), clipHalf(cell, 1, -1, x - z)];     // medio cuadro 0: (x-x0) >= (z-z0); medio cuadro 1: el otro
         for (let s = 0; s < 2; s++) { const q = tr[s]; if (q.length < 3) continue; const a2 = areaOf(q); if (a2 < .005) continue; if (a2 >= HALF) { own[c + s] = ai + 1; continue; } let l = parts.get(c + s); if (!l) parts.set(c + s, l = []); l.push([ai, q]); } } } });
-  const CH = 64, geos = new Map(), pal = new Map(), palId = hex => { let i = pal.get(hex); if (i === undefined) { i = pal.size; pal.set(hex, i); } return i; };
+  const STEEPL = { base: 1, land: 1, plaza: 1, lot: 1 }, CONC = lin(0x9b968c);
+  const CH = 64, geos = new Map(), pal = new Map(), palId = hex => { let i = pal.get(hex); if (i === undefined) { i = pal.size; pal.set(hex, i); } return i; }; const GRNID = palId(GRN);
   const gof = (ci, cj, n) => { const k = (ci * 64 + cj) * 16 + L[n].i; let q = geos.get(k); if (!q) geos.set(k, q = { g: new Geo(L[n].uv, L[n].k), m: new Map(), n }); return q; };
   const vert = (q, node, i, j, lift, col, cid) => { const k2 = node * 64 + cid; let v = q.m.get(k2); if (v !== undefined) return v;
     const hl = hM[i > 0 ? node - 1 : node], hr = hM[i < nx - 1 ? node + 1 : node], hu = hM[j > 0 ? node - nx : node], hd = hM[j < nz - 1 ? node + nx : node], gx = (hr - hl) / ((i > 0 && i < nx - 1 ? 2 : 1) * d), gz = (hd - hu) / ((j > 0 && j < nz - 1 ? 2 : 1) * d), l = Math.hypot(gx, 1, gz);
+    if (STEEPL[q.n] && cid !== GRNID) { const t = Math.max(0, Math.min(1, (Math.hypot(gx, gz) - .75) / .55)); if (t > 0) { const c = col; col = [c[0] + (CONC[0] - c[0]) * t, c[1] + (CONC[1] - c[1]) * t, c[2] + (CONC[2] - c[2]) * t]; } }      /* talud muy empinado en el pueblo: hormigón, como los muros de contención entre calle y calle (se funde poco a poco) */
     v = q.g.v(T.x0 + i * d, hM[node] + lift, T.z0 + j * d, -gx / l, 1 / l, -gz / l, col); q.m.set(k2, v); return v; };
   // bloques de cuadros con el mismo suelo y las alturas en un plano: dos triángulos en vez de dos por cuadro (lo que más aligera la malla)
   const inMap = (i, j) => { const mx = T.x0 + (i + .5) * d, mz = T.z0 + (j + .5) * d; return mx > bb[0] - mg && mx < bb[2] + mg && mz > bb[1] - mg && mz < bb[3] + mg; };
@@ -432,7 +442,7 @@ function terrainMeshes(L, areas, addMesh, bb, mg) {
       const pl = parts.get(c + s); if (!pl) continue; const lo = o ? areas[o - 1].li : -1, h00 = hM[n00], h10 = hM[n00 + 1], h01 = hM[n00 + nx], h11 = hM[n00 + nx + 1], gx = (s ? h11 - h01 : h10 - h00) / d, gz = (s ? h01 - h00 : h11 - h10) / d, nl = Math.hypot(gx, 1, gz), x0 = T.x0 + i * d, z0 = T.z0 + j * d;
       for (const P of pl) { const A = areas[P[0]]; if (A.li < lo || P[0] === o - 1) continue; const pts = P[1], n = pts.length;
         // recortes que no se van a ver: astillas, los del mismo color que lo que tienen debajo y los que caen enteros bajo el firme de una calle
-        if (o && areas[o - 1].hex === A.hex || areaOf(pts) < .4) { pst[2]++; continue; } { let hid = true; for (let k = 0; k < n && hid; k++) hid = covAll(pts[k][0], pts[k][1]); if (hid) { pst[3]++; continue; } }
+        if (o && areas[o - 1].hex === A.hex || areaOf(pts) < .4) { pst[2]++; continue; }      /* (los que caen bajo el firme también se dibujan: «firme» incluye los zócalos de los portales, que no se pintan, y quedaban dientes de sierra) */
         const nm = LAYER[A.li], g2 = gof(ci, cj, nm).g, ly = L[nm].y, c2 = lin(A.hex), base = g2.nv; pst[0]++; pst[1] += n - 2;
         for (const pt of pts) g2.v(pt[0], h00 + gx * (pt[0] - x0) + gz * (pt[1] - z0) + ly, pt[1], -gx / nl, 1 / nl, -gz / nl, c2);
         let conv = true, sg = 0; for (let k = 0; k < n && conv; k++) { const p0 = pts[k], p1 = pts[(k + 1) % n], p2 = pts[(k + 2) % n], cr = (p1[0] - p0[0]) * (p2[1] - p1[1]) - (p1[1] - p0[1]) * (p2[0] - p1[0]); if (Math.abs(cr) < 1e-9) continue; if (!sg) sg = Math.sign(cr); else if (Math.sign(cr) !== sg) conv = false; }
@@ -457,6 +467,18 @@ function scenery(addMesh) {
 }
 
 // escaleras de verdad sobre el relieve: huellas horizontales y contrahuellas que siguen la rampa del suelo; donde casi no hay pendiente, rellano
+// rampa o escalera mecánica al aire libre: cinta metálica con estrías, zócalos, pasamanos de goma negra y marquesina de cristal sobre postes
+function conveyor(g, gr, r) {
+  const P = densify(r.p, 1.5), n = P.length / 2; if (n < 2) return; const hw = Math.min(1.1, r.w / 2), cB = lin(0x8c939a), cS = lin(0xb9bfc5), cK = lin(0x23272b), cG = lin(0x9fc4d2), cP = lin(0x6b7278);
+  const X = [], Z = [], Y = [], NX = [], NZ = []; for (let k = 0; k < n; k++) { const a = Math.max(0, k - 1), b = Math.min(n - 1, k + 1), ux = P[b * 2] - P[a * 2], uz = P[b * 2 + 1] - P[a * 2 + 1], l = Math.hypot(ux, uz) || 1; X.push(P[k * 2]); Z.push(P[k * 2 + 1]); Y.push(gY(P[k * 2], P[k * 2 + 1]) + .22); NX.push(-uz / l); NZ.push(ux / l); }
+  const q = (G, A, B, C, D, col, nx, ny, nz) => G.quad(G.v(A[0], A[1], A[2], nx, ny, nz, col), G.v(B[0], B[1], B[2], nx, ny, nz, col), G.v(C[0], C[1], C[2], nx, ny, nz, col), G.v(D[0], D[1], D[2], nx, ny, nz, col));
+  for (let k = 0; k + 1 < n; k++) { const L = (s, o, dy) => [X[k + s] + NX[k + s] * o, Y[k + s] + dy, Z[k + s] + NZ[k + s] * o];
+    q(g, L(0, -hw + .25, 0), L(1, -hw + .25, 0), L(1, hw - .25, 0), L(0, hw - .25, 0), k % 2 ? cB : lin(0x828990), 0, 1, 0);      /* la cinta */
+    for (const sd of [-1, 1]) { const o = sd * (hw - .12); q(g, L(0, o, -.4), L(1, o, -.4), L(1, o, .95), L(0, o, .95), cS, NX[k] * sd, 0, NZ[k] * sd); q(g, L(0, o + sd * .13, .95), L(1, o + sd * .13, .95), L(1, o - sd * .13, .95), L(0, o - sd * .13, .95), cK, 0, 1, 0);      /* zócalo y pasamanos */
+      q(g, L(0, o + sd * .13, -.4), L(1, o + sd * .13, -.4), L(1, o + sd * .13, .95), L(0, o + sd * .13, .95), cS, NX[k] * sd, 0, NZ[k] * sd); }
+    q(gr, L(0, -hw - .2, 2.75), L(1, -hw - .2, 2.75), L(1, hw + .2, 2.75), L(0, hw + .2, 2.75), cG, 0, 1, 0);      /* marquesina */
+    if (k % 3 === 0) for (const sd of [-1, 1]) { const o = sd * (hw + .1), x = X[k] + NX[k] * o, z = Z[k] + NZ[k] * o, y = Y[k]; q(gr, [x - .05, y - .3, z], [x + .05, y - .3, z], [x + .05, y + 2.75, z], [x - .05, y + 2.75, z], cP, 0, 0, 1); q(gr, [x, y - .3, z - .05], [x, y - .3, z + .05], [x, y + 2.75, z + .05], [x, y + 2.75, z - .05], cP, 1, 0, 0); } }
+}
 function stairs(g, p, w, gr) {
   const cT = lin(0xbdb7a8), cR = lin(0x8f897c), cS = lin(0x9c968a), cL = lin(0xb3ad9f), h = w / 2, P = densify(p, .25), n = P.length / 2, S = [0]; for (let k = 1; k < n; k++) S.push(S[k - 1] + Math.hypot(P[k * 2] - P[k * 2 - 2], P[k * 2 + 1] - P[k * 2 - 1]));
   const L = S[n - 1]; if (L < .6) return; const o = {}, at = (s, o) => { let lo = 0, hi = n - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (S[m] <= s) lo = m; else hi = m; } const l = S[hi] - S[lo] || 1, f = Math.max(0, Math.min(1, (s - S[lo]) / l)); o.x = P[lo * 2] + (P[hi * 2] - P[lo * 2]) * f; o.z = P[lo * 2 + 1] + (P[hi * 2 + 1] - P[lo * 2 + 1]) * f; let a = Math.max(0, lo - 2), b = Math.min(n - 1, hi + 2); o.ux = P[b * 2] - P[a * 2]; o.uz = P[b * 2 + 1] - P[a * 2 + 1]; const ul = Math.hypot(o.ux, o.uz) || 1; o.ux /= ul; o.uz /= ul; o.y = gY(o.x, o.z); return o; };
@@ -491,7 +513,7 @@ export function buildWorld(M, quality) {
   M.roads.forEach((r, ri) => { if (!ROAD[r.t]) return; for (let k = 0; k + 3 < r.p.length; k += 2) { const id = W.rsegs.length / 5; W.rsegs.push(r.p[k], r.p[k + 1], r.p[k + 2], r.p[k + 3], ri); const a = Math.floor(Math.min(r.p[k], r.p[k + 2]) / 40), b = Math.floor(Math.max(r.p[k], r.p[k + 2]) / 40), c = Math.floor(Math.min(r.p[k + 1], r.p[k + 3]) / 40), d = Math.floor(Math.max(r.p[k + 1], r.p[k + 3]) / 40); for (let i = a; i <= b; i++) for (let j = c; j <= d; j++) { const kk = key(i, j); let l = W.rgrid.get(kk); if (!l) W.rgrid.set(kk, l = []); l.push(id); } } });
   // relieve: malla de alturas con las calles niveladas (si el mapa trae modelo del terreno)
   { const ways = [];
-    M.roads.forEach(r => { const sp = ROAD[r.t]; if (!sp) return; ways.push({ r, car: !!sp[3], p: r.p, hw: r.w / 2 + (sp[3] ? (r.sw || (r.t !== 'service' && r.t !== 'track' ? .8 : 0)) : 0), ms: r.t === 'steps' ? 1.1 : !sp[3] ? .5 : r.t === 'service' || r.t === 'track' ? .24 : .2, bridge: !!r.b, flat: true, sm: sp[3] ? .3 : r.t === 'steps' ? 0 : .15 }); });
+    M.roads.forEach(r => { const sp = ROAD[r.t]; if (!sp) return; ways.push({ r, car: !!sp[3], p: r.p, hw: r.w / 2 + (sp[3] ? (r.sw || (r.t !== 'service' && r.t !== 'track' ? .8 : 0)) : 0), ms: r.t === 'steps' || r.cv ? 1.1 : !sp[3] ? .5 : r.t === 'service' || r.t === 'track' ? .24 : .2, bridge: !!r.b, flat: true, sm: sp[3] ? .3 : r.t === 'steps' || r.cv ? 0 : .15 }); });
     (M.rail || []).forEach((p, i) => { const f = (M.railT || [])[i] || 0; if (f === 2) { ways.push({ rail: i, p, hw: 1.7, ms: .035, ghost: true, sm: .4 }); return; } ways.push({ rail: i, p, hw: 1.7, ms: .035, bridge: f === 1, flat: true, sm: .4 }); });      // los túneles cuentan para el perfil de la vía, pero no tocan el terreno
     initTerrain(M, ways, W.ext, M.bld.filter(b => !b.k || b.k === 'house' || b.k === 'civic').map(b => b.p));
     W.railDeck = []; ways.forEach(w => { if (!w.deck) return; if (w.r) w.r.deck = w.deck; else W.railDeck[w.rail] = w.deck; }); }
@@ -508,7 +530,7 @@ export function buildWorld(M, quality) {
   { const lim = mg ? [bb[0] - mg - 15, bb[1] - mg - 15, bb[2] + mg + 15, bb[3] + mg + 15] : null, FAR = 2600;
     (M.water || []).forEach((p0, wi) => { const p = p0.slice(); let far = false; if (lim) for (let k = 0; k < p.length; k += 2) { if (Math.abs(p[k] - lim[0]) < .4) { p[k] -= FAR; far = true; } else if (Math.abs(p[k] - lim[2]) < .4) { p[k] += FAR; far = true; } if (Math.abs(p[k + 1] - lim[1]) < .4) { p[k + 1] -= FAR; far = true; } else if (Math.abs(p[k + 1] - lim[3]) < .4) { p[k + 1] += FAR; far = true; } }
       W.water.push({ p, b: bboxOf(p) }); if (!T.on) { polyTiled(L.water.g, p, L.water.y, 0x4f8791, 160); return; }
-      area(p0, 'water', 0x4f8791); if (far) polyTiled(waterFar, p, (T.level[wi] || 0) + L.water.y - .03, 0x4f8791, 160); }); }
+      area(p0, 'land', 0x5f6c50); polyTiled(L.water.g, p0, (T.level[wi] || 0) + .06, 0x4f8791, 160); if (far) polyTiled(waterFar, p, (T.level[wi] || 0) + .03, 0x4f8791, 160); }); }      /* con relieve: la lámina de agua va plana a su nivel; debajo, el lecho y las orillas en color de ribera */
   (M.green || []).forEach(a => { const gk = GKIND[a.k]; if (!gk) return; area(a.p, gk[0], a.k === 'pitch' ? (SPORT[a.s] || gk[1]) : gk[1]);
     if (a.k === 'pitch' && a.p.length >= 8 && a.s !== 'track' && a.s !== 'boules') { const q = a.p.concat([a.p[0], a.p[1]]); ribbon(L.paint.g, offsetLine(q, 0), .12, L.paint.y, 0xf2efe6, -.25); } });
   // vías
@@ -517,7 +539,8 @@ export function buildWorld(M, quality) {
   const stairG = new Geo(), railG = new Geo(); let nStairs = 0;
   const onDeck = (dk, gs2, f) => { if (!dk) { f(); return; } const m0 = gs2.map(g => g.nv); ribDense = true; f(); ribDense = false; gs2.forEach((g, i) => { if (g.nv > m0[i]) deckMarks.push([g, m0[i], g.nv, dk]); }); };
   M.roads.forEach(r => { const sp = ROAD[r.t]; if (!sp) return; const w = r.w; onDeck(r.deck, [gs, gr, gl, gp], () => {
-    if (!sp[3]) { if (r.t === 'steps') { if (T.on && !r.deck) { offCarriage(r.p).forEach(q => stairs(stairG, q, w, railG)); nStairs++; } else { ribbon(gp, r.p, w, yp, 0xb3ad9f); dashes(gl, r.p, yl, 0x8d8779, .16, .34, w, .2); } } else ribbon(gp, r.p, w, yp, r.t === 'cycleway' ? 0xb5503c : r.t === 'path' ? 0xbfae8c : r.t === 'pedestrian' ? 0xcfc6b2 : 0xcbc4b2); return; }
+    if (!sp[3] && r.cv && T.on && !r.deck) { conveyor(stairG, railG, r); return; }
+    if (!sp[3]) { if (r.t === 'steps') { if (T.on && !r.deck) { offCarriage(r.p).forEach(q => stairs(stairG, q, w, r.hr === 0 ? null : railG));      /* sin pasamanos si el mapa dice handrail=no */ nStairs++; } else { ribbon(gp, r.p, w, yp, 0xb3ad9f); dashes(gl, r.p, yl, 0x8d8779, .16, .34, w, .2); } } else ribbon(gp, r.p, w, yp, r.t === 'cycleway' ? 0xb5503c : r.t === 'path' ? 0xbfae8c : r.t === 'pedestrian' ? 0xcfc6b2 : 0xcbc4b2); return; }
     if (T.on) { // con relieve, la acera va en dos cintas a los lados (lo de debajo del asfalto no se ve y costaba la mitad de los triángulos)
       if (r.sw || r.t !== 'service' && r.t !== 'track') { const sw = r.sw || .8, wd = sw + .45, o = w / 2 + sw / 2 - .025, col = r.sw ? 0xb9bcb4 : 0x8f9488;      /* la acera pisa 25 cm de calzada (para que no quede rendija) y sobresale 20 por fuera */ ribbon(gs, r.p, wd, ys, col, o); ribbon(gs, r.p, wd, ys, col, -o); } }
     else if (r.sw) ribbon(gs, r.p, w + r.sw * 2, ys, 0xb9bcb4); else if (r.t !== 'service' && r.t !== 'track') ribbon(gs, r.p, w + 1.6, ys, 0x8f9488);
@@ -638,7 +661,34 @@ export function buildWorld(M, quality) {
                 else { bar(ax, ay, az, bx, by, bz, .5, .78, nx, nz, .05, cS, cS2); }
                 W.segY[W.segs.length / 5] = Math.min(ay, by) - 1.2; W.segs.push(ax, az, bx, bz, Math.max(ay, by) + H); } } }
           k = e + 1; } } });
-    if (g.nv) splitGeo(g, 320).forEach(q => { const m = new THREE.Mesh(q, lit); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; root.add(m); }); W.guard = { runs: nRun, m: Math.round(len), list: GL }; }
+    if (g.nv) splitGeo(g, 200).forEach(q => { const m = new THREE.Mesh(q, lit); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; root.add(m); nearOnly(m, 360); }); W.guard = { runs: nRun, m: Math.round(len), list: GL }; }
+  // muros, vallas, setos y muros de contención del mapa (barrier=*): siguen el terreno, chocan, y se abren donde los cruza una calle, un camino o una acera
+  if (M.bar && M.bar.length) { const g = new Geo(), gp = new Geo(true), cnt = {}; let len = 0;
+    const COL = { w: 0xbdb6a6, b: 0x9a5644, s: 0x9d968a, r: 0xa9a397, j: 0xcfcbc1, h: 0x4f7a3c, g: 0xb9bfc5 }, cP = lin(0x3b4842), cT = lin(0xd8d2c4);
+    const gnd = (x, z) => T.on ? standY(x, z, -1e9) : 0;
+    const open = (x, z) => { if (inBuilding(x, z) || inWaterPoly(x, z)) return true; const rn = roadNear(x, z, 8, false); if (!rn.r) return false; const sp = ROAD[rn.r.t]; if (!sp) return false; const lim = sp[3] ? (rn.r.t === 'service' || rn.r.t === 'track' ? .55 : (rn.r.sw || .8) + .3) : .5; return rn.d < lim; };
+    const box = (ax, az, ay, bx, bz, by, h, th, col, top, caps) => { const dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz) || 1, nx = dz / l, nz = -dx / l, ox = nx * th / 2, oz = nz * th / 2, c = lin(col), ct = top ? lin(top) : c, y0a = ay - .35, y0b = by - .35;
+      for (const s of [1, -1]) { const X0 = ax + ox * s, Z0 = az + oz * s, X1 = bx + ox * s, Z1 = bz + oz * s; if (s > 0) g.quad(g.v(X1, y0b, Z1, nx, 0, nz, c), g.v(X0, y0a, Z0, nx, 0, nz, c), g.v(X0, ay + h, Z0, nx, 0, nz, c), g.v(X1, by + h, Z1, nx, 0, nz, c)); else g.quad(g.v(X0, y0a, Z0, -nx, 0, -nz, c), g.v(X1, y0b, Z1, -nx, 0, -nz, c), g.v(X1, by + h, Z1, -nx, 0, -nz, c), g.v(X0, ay + h, Z0, -nx, 0, -nz, c)); }
+      g.quad(g.v(ax - ox, ay + h, az - oz, 0, 1, 0, ct), g.v(bx - ox, by + h, bz - oz, 0, 1, 0, ct), g.v(bx + ox, by + h, bz + oz, 0, 1, 0, ct), g.v(ax + ox, ay + h, az + oz, 0, 1, 0, ct));
+      if (caps & 1) g.quad(g.v(ax + ox, y0a, az + oz, -dx / l, 0, -dz / l, c), g.v(ax - ox, y0a, az - oz, -dx / l, 0, -dz / l, c), g.v(ax - ox, ay + h, az - oz, -dx / l, 0, -dz / l, c), g.v(ax + ox, ay + h, az + oz, -dx / l, 0, -dz / l, c));
+      if (caps & 2) g.quad(g.v(bx - ox, y0b, bz - oz, dx / l, 0, dz / l, c), g.v(bx + ox, y0b, bz + oz, dx / l, 0, dz / l, c), g.v(bx + ox, by + h, bz + oz, dx / l, 0, dz / l, c), g.v(bx - ox, by + h, bz - oz, dx / l, 0, dz / l, c)); };
+    const panel = (ax, az, ay, bx, bz, by, h0, h1, u0, u1) => { const dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz) || 1, nx = dz / l, nz = -dx / l, c = [1, 1, 1]; gp.quad(gp.v(bx, by + h0, bz, nx, 0, nz, c, u1, 0), gp.v(ax, ay + h0, az, nx, 0, nz, c, u0, 0), gp.v(ax, ay + h1, az, nx, 0, nz, c, u0, 1), gp.v(bx, by + h1, bz, nx, 0, nz, c, u1, 1)); };
+    const post = (x, y, z, h, w, c) => { const hw = w / 2; for (const q of [[1, 0], [0, 1], [-1, 0], [0, -1]]) { const nx = q[0], nz = q[1], tx = -nz, tz = nx; g.quad(g.v(x + nx * hw + tx * hw, y - .35, z + nz * hw + tz * hw, nx, 0, nz, c), g.v(x + nx * hw - tx * hw, y - .35, z + nz * hw - tz * hw, nx, 0, nz, c), g.v(x + nx * hw - tx * hw, y + h, z + nz * hw - tz * hw, nx, 0, nz, c), g.v(x + nx * hw + tx * hw, y + h, z + nz * hw + tz * hw, nx, 0, nz, c)); } };
+    M.bar.forEach(B => { const p = densify(B.p, 2), n = p.length / 2; if (n < 2) return; const t = B.t, X = [], Z = [], Y = [], ok = [];
+      for (let k = 0; k < n; k++) { const x = p[k * 2], z = p[k * 2 + 1]; X.push(x); Z.push(z); Y.push(gnd(x, z)); ok.push(!open(x, z)); }
+      const H = B.h || { w: 1.6, r: 1, j: .85, h: 1.3, f: 1.5, fr: 1.1, g: .8 }[t] || 1.4;
+      for (let k = 0; k + 1 < n; k++) { if (!ok[k] || !ok[k + 1]) continue; const ax = X[k], az = Z[k], bx = X[k + 1], bz = Z[k + 1], dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz); if (l < .05) continue; len += l; cnt[t] = (cnt[t] || 0) + 1;
+        const caps = (k === 0 || !ok[k - 1] ? 1 : 0) | (k + 2 >= n || !ok[k + 2] ? 2 : 0); let ya = Y[k], yb = Y[k + 1], h = H, lo = Math.min(ya, yb);
+        if (t === 'r') { const nx = dz / l, nz = -dx / l, mx = (ax + bx) / 2, mz = (az + bz) / 2, up = Math.max(gnd(mx - nx * 1.4, mz - nz * 1.4), gnd(mx + nx * 1.4, mz + nz * 1.4)), dn = Math.min(gnd(mx - nx * 1.4, mz - nz * 1.4), gnd(mx + nx * 1.4, mz + nz * 1.4)); lo = dn; ya = yb = dn; h = Math.max(.9, up - dn + .35); }
+        if (t === 'f' || t === 'fr') { panel(ax, az, ya, bx, bz, yb, .06, h - .05, 0, l / (t === 'fr' ? .9 : 1.2)); box(ax, az, ya, bx, bz, yb, .05, .05, 0x3b4842, null, 0); g.quad(g.v(ax, ya + h - .05, az, 0, 1, 0, cP), g.v(bx, yb + h - .05, bz, 0, 1, 0, cP), g.v(bx, yb + h, bz, 0, 1, 0, cP), g.v(ax, ya + h, az, 0, 1, 0, cP)); { const dxn = dz / l * .03, dzn = -dx / l * .03; g.quad(g.v(bx + dxn, yb + h - .06, bz + dzn, dz / l, 0, -dx / l, cP), g.v(ax + dxn, ya + h - .06, az + dzn, dz / l, 0, -dx / l, cP), g.v(ax + dxn, ya + h, az + dzn, dz / l, 0, -dx / l, cP), g.v(bx + dxn, yb + h, bz + dzn, dz / l, 0, -dx / l, cP)); } if (k % 1 === 0) post(ax, ya, az, h, .07, cP); if (caps & 2) post(bx, yb, bz, h, .07, cP); }
+        else if (t === 'g') { box(ax, az, ya, bx, bz, yb, .78, .06, COL.g, 0x939aa1, caps); post(ax, ya, az, .75, .12, lin(0x70757a)); }
+        else if (t === 'h') box(ax, az, ya, bx, bz, yb, h, .9, COL.h, 0x5d8a46, caps);
+        else box(ax, az, ya, bx, bz, yb, h, t === 'j' ? .6 : t === 'r' ? .45 : .3, t === 'w' ? COL[B.m] || COL.w : COL[t], t === 'w' || t === 'r' ? 0xd8d2c4 : null, caps);
+        if (h >= .45) { W.segY[W.segs.length / 5] = lo - 1; W.segs.push(ax, az, bx, bz, Math.max(ya, yb) + h); } } });
+    if (g.nv) splitGeo(g, 200).forEach(q => { const m = new THREE.Mesh(q, lit); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; root.add(m); nearOnly(m, 330); });
+    if (gp.nv) { const tex = canvasTex(64, 64, (c, w, h) => { c.clearRect(0, 0, w, h); c.fillStyle = '#3b4842'; for (let x = 0; x < w; x += 16) c.fillRect(x + 6, 0, 4, h); c.fillRect(0, 0, w, 4); c.fillRect(0, h - 5, w, 5); c.fillRect(0, h * .5 - 2, w, 3); });
+      const pm = new THREE.MeshLambertMaterial({ map: tex, transparent: false, alphaTest: .5, side: THREE.DoubleSide }); splitGeo(gp, 200).forEach(q => { const m = new THREE.Mesh(q, pm); m.receiveShadow = true; m.matrixAutoUpdate = false; root.add(m); nearOnly(m, 220); }); }
+    W.barStats = { m: Math.round(len), cnt }; }
   for (let s = 0, id = 0; s < W.segs.length; s += 5, id++) gridAdd(W.grid, W.segs[s], W.segs[s + 1], W.segs[s + 2], W.segs[s + 3], id);
   W.bld.forEach((b, i) => { for (let x = Math.floor(b.b[0] / 40); x <= Math.floor(b.b[2] / 40); x++) for (let z = Math.floor(b.b[1] / 40); z <= Math.floor(b.b[3] / 40); z++) { const kk = key(x, z); let l = W.bgrid.get(kk); if (!l) W.bgrid.set(kk, l = []); l.push(i); } });
   portals = null; void quality;
@@ -672,6 +722,8 @@ export function instChunks(root, geo, material, list, o) {
   return refs;
 }
 // cada medio segundo: apaga los grupos de cosas pequeñas que quedan lejos
+// malla suelta que solo se ve de cerca (muros, vallas, quitamiedos): se apunta a las de nivel de detalle
+function nearOnly(m, far) { const g = m.geometry; g.computeBoundingSphere(); const bs = g.boundingSphere; W.lods.push({ m, x: bs.center.x, z: bs.center.z, d: far + bs.radius, tag: 'near' }); }
 export function updateLods(px, pz) { for (const l of W.lods) l.m.visible = !l.off && Math.hypot(l.x - px, l.z - pz) < l.d; }
 // algo derribado: se quita de su malla instanciada y deja de chocar
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);

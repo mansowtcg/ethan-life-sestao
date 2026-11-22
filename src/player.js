@@ -1,6 +1,6 @@
 // player.js: Ethan a pie
 import { Ethan } from './ethan.js';
-import { collide, inWaterPoly, clampWorld } from './world.js';
+import { collide, inWaterPoly, clampWorld, roadNear } from './world.js';
 import { nearestEdge } from './graph.js';
 import { roadW } from './world.js';
 import { I } from './input.js';
@@ -23,6 +23,8 @@ export function updateFoot(dt, slow) {
     const cw = clampWorld(nx, nz, 4); if (cw) { nx = cw[0]; nz = cw[1]; }
     if (!inWaterPoly(nx, nz) || onBridge(nx, nz)) { P.v = Math.hypot(nx - P.x, nz - P.z) / dt; P.x = nx; P.z = nz; }
   }
+  // en una rampa mecánica la cinta te lleva (a 0,75 m/s, como las de verdad), andes o no
+  if (T.on && !P.scoot && P.lock <= 0) { const rn = roadNear(P.x, P.z, 3, false); if (rn.r && rn.r.cv && rn.d < -.15) { const v = .75 * rn.r.cv, nx = P.x + rn.ux * v * dt, nz = P.z + rn.uz * v * dt; if (!collide(nx, nz, .36, false, P.y + .6).hit) { P.x = nx; P.z = nz; P.belt = 1; } } else P.belt = 0; }
   if (P.lock > 0) P.lock -= dt;
   const e = P.ethan; if (!P.anim) e.play(P.v > .3 && !P.scoot ? 'walk' : 'idle', { walkRate: P.v > 5 ? 12.5 : 8.2 });
   if (T.on) { const ty = standY(P.x, P.z, P.y + .7); P.y = Math.abs(ty - P.y) > 1.5 ? ty : damp(P.y, ty, 18, dt); }
