@@ -257,6 +257,6 @@ const START = {
   // viernes y sábado: noche de GTA con los colegas, en casa
   f2f() { return nightIn('f2f', 'Face to face', '🎮', 'Noche de GTA V con Hernández y los colegas. Si entras, hasta las dos y media.', () => { moment('f2f'); goSleep({ bed: 150, wake: 630, id: 'gta', n: 'Cansancio de GTA', ic: '🎮', x: .8 }); }, 'Noche de GTA hasta las dos y media. Mañana no hay quien le levante.', 'Han jugado sin ti. Dicen que has ganado igual.'); },
   // sábado con la casa sola: fiestón
-  fiesta() { return nightIn('fiesta', 'Fiestón con la casa sola', '🎉', 'Con los aitas en el pueblo, la casa es tuya. Los colegas ya están subiendo.', () => { addBuff('moral', 'Moral por las nubes', '😏', 'work', 2, 12); moment('fiesta'); goSleep({ bed: 180, wake: 660, id: 'fieston', n: 'Resaca del fiestón', ic: '🎉', x: .8 }); }, 'Fiestón en casa. La moral, por las nubes.', 'Los colegas se han ido al Ekintza. Otra vez será.'); }
+  fiesta() { return nightIn('fiesta', 'Fiestón con la casa sola', '🎉', 'Con los aitas en el pueblo, la casa es tuya. Los colegas ya están subiendo.', () => { addBuff('moral', 'Moral por las nubes', '😏', 'work', 2, 16); moment('fiesta'); goSleep({ bed: 180, wake: 660, id: 'fieston', n: 'Resaca del fiestón', ic: '🎉', x: .8 }); }, 'Fiestón en casa. La moral, por las nubes.', 'Los colegas se han ido al Ekintza. Otra vez será.'); }
 };
 G.startMission = startMission; G.endMission = endMission;
