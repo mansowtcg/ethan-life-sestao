@@ -702,7 +702,7 @@ export function buildWorld(M, quality) {
                   face(bx + ox, bz + oz, b0, b1, ax + ox, az + oz, a0, a1, -nx, -nz, col); face(bx + ox * .9, bz + oz * .9, b0, b0 + .45, ax + ox * .9, az + oz * .9, a0, a0 + .45, -nx, -nz, cB);
                   wg.quad(wg.v(ax + ox, a1, az + oz, 0, 1, 0, cT), wg.v(bx + ox, b1, bz + oz, 0, 1, 0, cT), wg.v(bx + ox + nx * .45, b1, bz + oz + nz * .45, 0, 1, 0, cT), wg.v(ax + ox + nx * .45, a1, az + oz + nz * .45, 0, 1, 0, cT));
                   face(ax + ox + nx * .45, az + oz + nz * .45, a1 - .25, a1, bx + ox + nx * .45, bz + oz + nz * .45, b1 - .25, b1, nx, nz, cT);
-                  W.segY[W.segs.length / 5] = Math.min(a0, b0); W.segs.push(ax + ox, az + oz, bx + ox, bz + oz, Math.min(a1, b1)); }
+                  W.segY[W.segs.length / 5] = Math.min(a0, b0) - .5; W.segs.push(ax + ox, az + oz, bx + ox, bz + oz, Math.min(a1, b1) - 1); }      // arriba, a ras del muro, se pasa (una calle que cruza por encima)
                 else { const a1 = BY[i0] - .05, b1 = BY[i1] - .05, a0 = a1 - ha - .4, b0 = b1 - hb - .4;      // muro bajo una calle colgada: cara hacia fuera
                   face(ax + ox, az + oz, a0, a1, bx + ox, bz + oz, b0, b1, nx, nz, col); } } k = e + 1; } } } });
       if (wg.nv) splitGeo(wg, 240).forEach(q => { const m = new THREE.Mesh(q, lit); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; root.add(m); });
