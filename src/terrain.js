@@ -75,6 +75,8 @@ export function standY(x, z, y) {
 // ---------- construcción
 // ways: [{ p: [x,z,...], hw: medio ancho con acera, ms: pendiente máxima, bridge, flat: se nivela el terreno, sm: se suaviza el perfil }]
 // el agua que toca el borde del mapa se alarga más allá: la ría hasta el horizonte; un río estrecho, solo un trecho (si no, sale un canal recto cruzando el monte)
+const bboxP = p => { let a = 1e9, b = 1e9, c = -1e9, e = -1e9; for (let k = 0; k < p.length; k += 2) { a = Math.min(a, p[k]); c = Math.max(c, p[k]); b = Math.min(b, p[k + 1]); e = Math.max(e, p[k + 1]); } return [a, b, c, e]; };
+const pipP = (p, x, z) => { let c = false; for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) if ((p[i + 1] > z) !== (p[j + 1] > z) && x < (p[j] - p[i]) * (z - p[i + 1]) / (p[j + 1] - p[i + 1]) + p[i]) c = !c; return c; };
 export function waterExt(M, p0) { const bb = M.bbox, mg = M.margin || 0; if (!mg) return { p: p0, far: false }; const lim = [bb[0] - mg - 15, bb[1] - mg - 15, bb[2] + mg + 15, bb[3] + mg + 15], p = p0.slice(), n = p.length / 2;
   const at = k => Math.abs(p[k * 2] - lim[0]) < .4 || Math.abs(p[k * 2] - lim[2]) < .4 || Math.abs(p[k * 2 + 1] - lim[1]) < .4 || Math.abs(p[k * 2 + 1] - lim[3]) < .4, on = []; for (let k = 0; k < n; k++) on.push(at(k));
   if (on.indexOf(true) < 0) return { p, far: false }; const st = on.indexOf(false); if (st < 0) return { p, far: false };
@@ -269,7 +271,13 @@ export function initTerrain(M, ways, ext, aprons) {
   const WX = [];
   // el agua que toca el borde del mapa sigue más allá (como la lámina que se alarga hasta el horizonte): su lecho también, o asoma el relieve del margen como una rampa de agua
   const extW = p0 => waterExt(M, p0);
-  T.level = (M.water || []).map(p0 => { const hs = []; for (let k = 0; k < p0.length; k += 2) if (inRaster(p0[k], p0[k + 1])) hs.push(base0(p0[k], p0[k + 1])); hs.sort((a, b) => a - b); const lv = hs.length ? Math.max(0, hs[Math.floor(hs.length * .15)]) : 0, p = extW(p0).p;
+  T.level = (M.water || []).map(p0 => { const hs = []; for (let k = 0; k < p0.length; k += 2) if (inRaster(p0[k], p0[k + 1])) hs.push(base0(p0[k], p0[k + 1])); hs.sort((a, b) => a - b); let lv = hs.length ? Math.max(0, hs[Math.floor(hs.length * .15)]) : 0; const p = extW(p0).p;
+    // una calzada (sin puente) que cruza el agua manda: la lámina queda por debajo de ella, o la taparía (canales y dársenas bajo una calle)
+    { const bx = bboxP(p0); let m = 1e9; W.forEach(o => { if (o.bridge || !o.w.car || (o.w.r && o.w.r.u)) return; for (let k = 0; k < o.v.length; k++) { const x = o.x[k], z = o.z[k]; if (x > bx[0] && x < bx[2] && z > bx[1] && z < bx[3] && pipP(p0, x, z)) m = Math.min(m, H[o.v[k]]); } }); if (m < lv + .6) { (T.wcapL || (T.wcapL = [])).push(['calle', Math.round(bx[0]), Math.round(bx[1]), +lv.toFixed(1), +(m - .6).toFixed(1)]); lv = Math.max(-.5, m - .6); T.wcap = (T.wcap || 0) + 1; }
+      // y un puente que pasa por encima del agua (o por su borde, como el de la boca de una dársena): el agua, al menos 1,2 m por debajo de sus estribos
+      const dSeg = (x, z) => { let d = 1e9; for (let i = 0, j = p0.length - 2; i < p0.length; j = i, i += 2) { const ax = p0[j], az = p0[j + 1], ex = p0[i] - ax, ez = p0[i + 1] - az, t = cl(((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez || 1), 0, 1); d = Math.min(d, Math.hypot(x - ax - ex * t, z - az - ez * t)); } return d; };
+      let mb = 1e9; W.forEach(o => { if (!o.bridge || o.v.length < 2) return; const n2 = o.v.length - 1, mx = (NX[o.v[0]] + NX[o.v[n2]]) / 2, mz = (NZ[o.v[0]] + NZ[o.v[n2]]) / 2; if (mx < bx[0] - 20 || mx > bx[2] + 20 || mz < bx[1] - 20 || mz > bx[3] + 20) return; if (pipP(p0, mx, mz) || dSeg(mx, mz) < 12) mb = Math.min(mb, H[o.v[0]], H[o.v[n2]]); });
+      if (mb < lv + 1.2) { (T.wcapL || (T.wcapL = [])).push(['puente', Math.round(bx[0]), Math.round(bx[1]), +lv.toFixed(1), +(mb - 1.2).toFixed(1)]); lv = Math.max(-.5, mb - 1.2); T.wcap = (T.wcap || 0) + 1; } }
     let a = 1e9, b = 1e9, c = -1e9, e = -1e9; for (let k = 0; k < p.length; k += 2) { a = Math.min(a, p[k]); c = Math.max(c, p[k]); b = Math.min(b, p[k + 1]); e = Math.max(e, p[k + 1]); }
     const i0 = Math.max(0, Math.ceil((a - T.x0) / d)), i1 = Math.min(nx - 1, Math.floor((c - T.x0) / d)), j0 = Math.max(0, Math.ceil((b - T.z0) / d)), j1 = Math.min(nz - 1, Math.floor((e - T.z0) / d));
     for (let j = j0; j <= j1; j++) { const z = T.z0 + j * d, xs = []; for (let k = 0, n = p.length / 2, q = n - 1; k < n; q = k++) { const zi = p[k * 2 + 1], zj = p[q * 2 + 1]; if ((zi > z) !== (zj > z)) xs.push((p[q * 2] - p[k * 2]) * (z - zi) / (zj - zi) + p[k * 2]); } xs.sort((u, v) => u - v);

@@ -5,7 +5,7 @@ import { Vox, mat, voxText } from './vox.js';
 import { W, ROAD, Geo, instChunks, addProp, collide, inBuilding, inWaterPoly, inPoly, roadNear, bboxOf, canvasTex, nearJunc } from './world.js';
 import { rng } from './util.js';
 import { GR } from './graph.js';
-import { standY, deckY, gY } from './terrain.js';
+import { standY, deckY, gY, mY } from './terrain.js';
 
 export const ST = { pois: [], pgrid: new Map(), transit: [], lights: [], stops: [], cars: 0, fost: [] };
 const key = (a, b) => a * 100003 + b;
@@ -121,7 +121,7 @@ export function buildStreet(M, root, q) {
     const refs = instChunks(root, v.geometry(), lit, list, { far: 260 * far, shadow: q > 1 }), lp = list.map((t, i) => soft(t[0], t[1], .14, 'sign', [refs[i]]));
     ['R', 'A', 'G'].forEach((n, i) => { const b = new Vox(); b.box(0, 3.78 - i * .31, .2, .2, .2, .04, 0xffffff); const m = W.mats['tl' + n] = new THREE.MeshBasicMaterial({ color: 0x222222 }); const rf = instChunks(root, b.geometry(), m, list, { far: 260 * far }); lp.forEach((p, k) => p.inst.push(rf[k])); }); }
 
-  calming(M, root); poiSigns(M, root, q, far); transit(M, root, q); landmarks(M, root, q); puente(root, q); plates(M, root, q, far);
+  calming(M, root); pitches(M, root, q, far); poiSigns(M, root, q, far); transit(M, root, q); landmarks(M, root, q); puente(root, q); plates(M, root, q, far);
 }
 // ---------- badenes y pasos elevados del mapa (traffic_calming): mesa (paso elevado, 10 cm), lomo (8 cm) y bandas rugosas.
 // calmH(x, z) da cuánto levantan el firme en ese punto: el coche de Ethan lo nota (cabecea y, si pasa deprisa, se resiente)
@@ -146,6 +146,41 @@ function calming(M, root) {
   if (g.nv) { const m = new THREE.Mesh(g.build(), mat('lit')); m.receiveShadow = true; m.matrixAutoUpdate = false; root.add(m); } ST.calm = CALM.length;
 }
 const lin2 = hex => { const c = new THREE.Color(hex); return [c.r, c.g, c.b]; };
+
+// ---------- campos del mapa con sus líneas y porterías (fútbol, fútbol sala, balonmano), canastas (baloncesto) y red (tenis).
+// El campo se orienta por el eje largo de su polígono y las medidas se ajustan a lo que mide de verdad
+function pitches(M, root, q, far) {
+  const g = new Geo(), W2 = lin2(0xf2efe6), goals = [], small = [], hoops = [], nets = []; let n = 0;
+  (M.green || []).forEach(a => { if (a.k !== 'pitch') return; const sp = a.s || ''; const P = a.p, m = P.length / 2; if (m < 4) return;
+    let cx = 0, cz = 0; for (let k = 0; k < m; k++) { cx += P[k * 2]; cz += P[k * 2 + 1]; } cx /= m; cz /= m; let A = 0, B = 0, C = 0; for (let k = 0; k < m; k++) { const dx = P[k * 2] - cx, dz = P[k * 2 + 1] - cz; A += dx * dx; B += dz * dz; C += dx * dz; }
+    const t = .5 * Math.atan2(2 * C, A - B), ux = Math.cos(t), uz = Math.sin(t); let u0 = 1e9, u1 = -1e9, v0 = 1e9, v1 = -1e9; for (let k = 0; k < m; k++) { const dx = P[k * 2] - cx, dz = P[k * 2 + 1] - cz, u = dx * ux + dz * uz, v = -dx * uz + dz * ux; u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+    const L = (u1 - u0) - 2, Wd = (v1 - v0) - 2, ox = cx + ux * (u0 + u1) / 2 - uz * (v0 + v1) / 2, oz = cz + uz * (u0 + u1) / 2 + ux * (v0 + v1) / 2; if (L < 12 || Wd < 7 || L > 130) return;
+    const at = (u, v) => [ox + ux * u - uz * v, oz + uz * u + ux * v], inside = (u, v) => { const p = at(u, v); return inPoly(P, p[0], p[1]); }; if (!inside(L / 2 - .5, Wd / 2 - .5) || !inside(-L / 2 + .5, -Wd / 2 + .5)) return;
+    const line = (ua, va, ub, vb, w) => { const A0 = at(ua, va), B0 = at(ub, vb), dx = B0[0] - A0[0], dz = B0[1] - A0[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l * w / 2, nz = dx / l * w / 2, y = p => Math.max(gY(p[0], p[1]), mY(p[0], p[1])) + .2, ns = Math.max(1, Math.ceil(l / 1.5));      // a trozos: así sigue el suelo
+      for (let i = 0; i < ns; i++) { const a = [A0[0] + dx * i / ns, A0[1] + dz * i / ns], b = [A0[0] + dx * (i + 1) / ns, A0[1] + dz * (i + 1) / ns]; g.quad(g.v(a[0] - nx, y(a), a[1] - nz, 0, 1, 0, W2), g.v(a[0] + nx, y(a), a[1] + nz, 0, 1, 0, W2), g.v(b[0] + nx, y(b), b[1] + nz, 0, 1, 0, W2), g.v(b[0] - nx, y(b), b[1] - nz, 0, 1, 0, W2)); } };
+    const rect = (ua, va, ub, vb) => { line(ua, va, ub, va, .18); line(ub, va, ub, vb, .18); line(ub, vb, ua, vb, .18); line(ua, vb, ua, va, .18); };
+    const circ = (uc, vc, r, a0, a1) => { const N = 20; for (let i = 0; i < N; i++) { const p0 = a0 + (a1 - a0) * i / N, p1 = a0 + (a1 - a0) * (i + 1) / N; line(uc + Math.cos(p0) * r, vc + Math.sin(p0) * r, uc + Math.cos(p1) * r, vc + Math.sin(p1) * r, .18); } };
+    const H = L / 2, V = Wd / 2, yaw = Math.atan2(ux, uz);
+    if (/soccer|futsal|handball|team_handball|multi/.test(sp) || (!sp && L > 25)) { n++; const big = L > 60 && Wd > 35, sc = big ? 1 : Math.min(1, L / 100);
+      rect(-H, -V, H, V); line(0, -V, 0, V, .18); circ(0, 0, big ? 9.15 : Math.max(2, Wd * .17), 0, Math.PI * 2);
+      for (const s2 of [-1, 1]) { const pa = big ? 16.5 : Math.max(3, L * .14), pw = big ? 20.2 : Math.max(3, Wd * .3); rect(s2 * H, -pw, s2 * (H - pa), pw); if (big) { rect(s2 * H, -9.16, s2 * (H - 5.5), 9.16); circ(s2 * (H - 11), 0, 9.15, s2 > 0 ? Math.PI * .7 : -Math.PI * .3, s2 > 0 ? Math.PI * 1.3 : Math.PI * .3); }
+        const gp = at(s2 * (H + .05), 0); (big ? goals : small).push([gp[0], gp[1], yaw + (s2 > 0 ? 0 : Math.PI)]); addProp(...at(s2 * H, big ? 3.66 : 1.5), .12, 'deco'); addProp(...at(s2 * H, big ? -3.66 : -1.5), .12, 'deco'); } }
+    else if (/basketball/.test(sp)) { n++; rect(-H, -V, H, V); line(0, -V, 0, V, .15); circ(0, 0, 1.8, 0, Math.PI * 2); for (const s2 of [-1, 1]) { circ(s2 * (H - 1.6), 0, Math.min(6.75, V - .3), s2 > 0 ? Math.PI / 2 : -Math.PI / 2, s2 > 0 ? Math.PI * 1.5 : Math.PI / 2); const hp = at(s2 * (H + .6), 0); hoops.push([hp[0], hp[1], yaw + (s2 > 0 ? Math.PI : 0)]); addProp(hp[0], hp[1], .2, 'deco'); } }
+    else if (/tennis/.test(sp)) { n++; rect(-H, -V, H, V); const sv = Math.min(V, 4.1); line(-H, -sv, H, -sv, .12); line(-H, sv, H, sv, .12); line(-H * .5, 0, H * .5, 0, .12); line(-H * .5, -sv, -H * .5, sv, .12); line(H * .5, -sv, H * .5, sv, .12); const np = at(0, 0); nets.push([np[0], np[1], yaw, 0, 1, Wd + .6]); for (const s2 of [-1, 1]) addProp(...at(0, s2 * (V + .3)), .1, 'deco'); } });
+  if (g.nv) { const mm = new THREE.Mesh(g.build(), mat('lit')); mm.receiveShadow = true; mm.matrixAutoUpdate = false; root.add(mm); nearOnly2(mm, 380 * far); }
+  // porterías (de once y pequeñas), canastas y redes
+  const gv = new Vox(); gv.box(0, 0, -3.66, .12, 2.44, .12, 0xffffff); gv.box(0, 0, 3.66, .12, 2.44, .12, 0xffffff); gv.bx(-.06, 2.38, -3.72, .06, 2.5, 3.72, 0xffffff); gv.bx(.06, 0, -3.66, 1.9, .05, 3.66, 0xb9bcb4); gv.bx(1.9, 0, -3.66, 1.95, 1.4, 3.66, 0xc8ccc4); gv.bx(.06, 2.4, -3.66, 1.9, 2.44, 3.66, 0xc8ccc4);
+  const sv = new Vox(); sv.box(0, 0, -1.5, .08, 2, .08, 0xffffff); sv.box(0, 0, 1.5, .08, 2, .08, 0xffffff); sv.bx(-.04, 1.96, -1.54, .04, 2.04, 1.54, 0xffffff); sv.bx(.05, 0, -1.5, 1, .04, 1.5, 0xb9bcb4); sv.bx(1, 0, -1.5, 1.03, 1.1, 1.5, 0xc8ccc4);
+  const hv = new Vox(); hv.box(0, 0, 0, .14, 3.4, .14, 0x3a3f46); hv.bx(-.07, 3.1, -.07, 1.1, 3.2, .07, 0x3a3f46); hv.bx(1.1, 2.9, -.9, 1.14, 3.95, .9, 0xf2efe6); hv.bx(1.14, 3.05, -.025, 1.6, 3.08, .025, 0xd85a32); hv.bx(1.18, 3.05, -.23, 1.6, 3.08, -.2, 0xd85a32); hv.bx(1.18, 3.05, .2, 1.6, 3.08, .23, 0xd85a32);
+  const nv = new Vox(); nv.box(0, 0, -.5, .07, 1.07, .07, 0x3a3f46); nv.box(0, 0, .5, .07, 1.07, .07, 0x3a3f46); nv.bx(-.02, .2, -.5, .02, .95, .5, 0x2a2d31); nv.bx(-.03, .92, -.5, .03, 1, .5, 0xf2efe6);
+  const yawFix = l => l.map(q => [q[0], q[1], q[2] - Math.PI / 2, 0, 1]);
+  instChunks(root, gv.geometry(), mat('lit'), yawFix(goals), { far: 300 * far, ground: true, shadow: q > 1 }); instChunks(root, sv.geometry(), mat('lit'), yawFix(small), { far: 220 * far, ground: true });
+  instChunks(root, hv.geometry(), mat('lit'), hoops.map(q => [q[0], q[1], q[2] - Math.PI / 2, 0, 1]), { far: 220 * far, ground: true, shadow: q > 1 });
+  // la red de tenis se estira a lo ancho de la pista: el modelo mide 1 m y se escala solo en ese eje
+  nets.forEach(t => { const m = new THREE.Mesh(nv.geometry(), mat('lit')); m.position.set(t[0], gY(t[0], t[1]) + .17, t[1]); m.rotation.y = t[2] - Math.PI / 2; m.scale.set(1, 1, t[5]); m.matrixAutoUpdate = false; m.updateMatrix(); root.add(m); nearOnly2(m, 200 * far); });
+  ST.pitches = { n, goals: goals.length + small.length, hoops: hoops.length, nets: nets.length };
+}
+function nearOnly2(m, d) { const g = m.geometry; g.computeBoundingSphere(); const c = g.boundingSphere.center.clone().applyMatrix4(m.matrixWorld.copy(m.matrix)); W.lods.push({ m, x: c.x, z: c.z, d: d + g.boundingSphere.radius * Math.max(m.scale.x, m.scale.z), tag: 'near' }); }
 
 // ---------- placas con el nombre de la calle en las esquinas: en la fachada si la hay, si no en un poste. Un atlas de nombres en un canvas
 function plates(M, root, q, far) {

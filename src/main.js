@@ -226,6 +226,8 @@ function lights() { const on = G.night > .35 && G.mode === 'car'; head.intensity
 // ---------- bucle
 function tick(dt) { // un paso de juego, sin dibujar
   poll();
+  if (!Number.isFinite(P.y) && Number.isFinite(P.x) && Number.isFinite(P.z)) P.y = standY(P.x, P.z);      // a prueba de NaN: una altura rota no se arrastra para siempre
+  if (!Number.isFinite(car.y) && Number.isFinite(car.x) && Number.isFinite(car.z)) car.y = standY(car.x, car.z);
   if (!G.title && !G.busy) {
     if (G.mode === 'car') { drive(dt); P.y = car.y; } else { updateFoot(dt, G.S.energy < 8 ? .6 : 1); footExtras(); }
     G.py = FXB.y = G.mode === 'car' ? car.y : P.y;
@@ -236,7 +238,8 @@ function tick(dt) { // un paso de juego, sin dibujar
     if (s) setPrompt('E', s.icon + ' ' + s.n); else if (fz) setPrompt('E', fz.k === 'stage' ? '🎤 Escenario del Kasko' : '🍷 Txosna'); else if (p) setPrompt('E', (CAT[p.c] || CAT.shop)[2] + ' ' + p.n); else if (tr) setPrompt('E', (tr.k === 'metro' ? '🚇 Metro · ' : '🚆 Tren · ') + tr.n); else if (bs) setPrompt('E', '🚌 Bizkaibus · ' + bs.n); else if (foot && carDist() < 3.8) setPrompt('F', '🚗 Subir al coche'); else setPrompt();
   } else { if (G.mgTick) G.mgTick(dt); if (!G.dr && G.mode === 'foot') { P.y = standY(P.x, P.z, P.y + .7); G.py = FXB.y = P.y; } P.ethan.root.position.set(P.x, P.y, P.z); P.ethan.root.rotation.y = P.yaw; P.ethan.update(dt); setPrompt(); }
   engine(G.mode === 'car' && !G.title && !G.busy, car.vf, I.my); ambience({ on: !G.title, day: 1 - G.night, rain: SKY.rain, train: TRN.near, trainV: TRN.v, inCar: G.mode === 'car' });
-  updateSpots(dt, t, G.px, G.pz); updateCamera(dt); if ((skyT -= dt) < 0) { updateSky(.4 + skyT); skyT = .4; lights(); const quiet = G.night > .7 ? .4 : SKY.rain > .4 ? .7 : 1; TR.max = TR.cap ? Math.max(2, Math.round(TR.cap * quiet)) : 0; PED.max = PED.cap ? Math.max(1, Math.round(PED.cap * quiet * (SKY.rain > .4 ? .6 : 1))) : 0; /* de noche y con lluvia hay menos gente */ } tickSky(dt); G.fx.update(dt); updateHud(dt);
+  updateSpots(dt, t, G.px, G.pz); updateCamera(dt); if ((skyT -= dt) < 0) { updateSky(.4 + skyT); skyT = .4; lights(); const hr = (G.S ? G.S.min : 600) / 60 % 24, we = G.S && (G.S.day - 1) % 7 >= 5, rush = !we && ((hr >= 7.5 && hr < 9.2) || (hr >= 17.5 && hr < 19.5)) ? 1 : hr >= 14 && hr < 16 ? .72 : we && hr < 11 ? .6 : .88;      // horas punta entre semana; a la hora de comer y el domingo por la mañana, menos
+    const quiet = (G.night > .7 ? .4 : SKY.rain > .4 ? .7 : 1) * rush, paseo = (we && hr >= 11 && hr < 14) || (hr >= 18 && hr < 21) ? 1.15 : 1; TR.max = TR.cap ? Math.max(2, Math.round(TR.cap * quiet)) : 0; PED.max = PED.cap ? Math.max(1, Math.min(PED.cap, Math.round(PED.cap * quiet / rush * paseo * (SKY.rain > .4 ? .6 : 1)))) : 0; /* de noche y con lluvia hay menos gente */ } tickSky(dt); G.fx.update(dt); updateHud(dt);
   tickWorld(dt); tickStreet(t, camera, scene.fog && scene.fog.color); tickFiestas(dt, t); if ((lodT -= dt) < 0) { lodT = .5; updateLods(camera.position.x, camera.position.z); }
 }
 // ritmo: media móvil del tiempo por fotograma. Si no llega a unos 42 por segundo baja la resolución y, si ni así, la calidad;
