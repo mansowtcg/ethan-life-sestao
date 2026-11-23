@@ -141,10 +141,14 @@ export function initTerrain(M, ways, ext, aprons) {
       let Lt = 0; chain.forEach(c => { Lt += c[0].len; }); const w0 = o.w, ch = { A: start, B: end, Lt, obs: [], slaves: [], mb: w0.rail !== undefined ? .03 : w0.car ? .12 : .2, rail: w0.rail !== undefined }; chains.push(ch);
       let acc = 0; chain.forEach((c, ci) => { const q = c[0]; q.ch = ch; q.s0 = (c[1] ? acc + q.len : acc) / Lt; q.s1 = (c[1] ? acc : acc + q.len) / Lt; acc += q.len; if (ci < chain.length - 1) { const id = q.v[c[1] ? 0 : 1]; if (cnt[id]) ch.slaves.push([id, acc / Lt]); } });
       if (start !== end) segs.push([start, end, Lt, o.w.ms]); }); }
+  const tieB = [], tieN = [];
   // un puente que nace en mitad de otro (el ramal que sale de una rotonda elevada): su extremo va atado al tablero del otro, a su altura
   { let nT = 0; chains.forEach(c => [c.A, c.B].forEach(id => { if (cnt[id] || use.get(id) !== 1) return; const x = NX[id], z = NZ[id];
       for (const q of br) { if (q.ch === c || q.v.indexOf(id) >= 0) continue; const p = q.w.p; let acc = 0, hit = -1; for (let k = 0; k + 3 < p.length; k += 2) { const ax = p[k], az = p[k + 1], ex = p[k + 2] - ax, ez = p[k + 3] - az, l = Math.hypot(ex, ez) || 1, t = cl(((x - ax) * ex + (z - az) * ez) / (l * l), 0, 1); if (Math.hypot(x - ax - ex * t, z - az - ez * t) < .8) { hit = acc + t * l; break; } acc += l; }
-        if (hit < 1 || hit > q.len - 1) continue; const f = hit / q.len; q.ch.slaves.push([id, q.s0 + (q.s1 - q.s0) * f]); nT++; (T.ties || (T.ties = [])).push([Math.round(x), Math.round(z), Math.round(c.Lt)]); break; } })); T.nTie = nT; }
+        if (hit < 1 || hit > q.len - 1) continue; const f = hit / q.len; q.ch.slaves.push([id, q.s0 + (q.s1 - q.s0) * f]); nT++; tieB.push([id, q]); (T.ties || (T.ties = [])).push([Math.round(x), Math.round(z), Math.round(c.Lt)]); break; } })); T.nTie = nT; }
+  // y una calle o un camino que comparte un nudo con un puente en mitad del tablero (sale de él): ese nudo va a la altura del tablero
+  { const bv = new Map(); br.forEach(q => { const p = q.w.p; let acc = 0; for (let k = 0; k < p.length; k += 2) { if (k) acc += Math.hypot(p[k] - p[k - 2], p[k + 1] - p[k - 1]); if (k && k < p.length - 2) bv.set(Math.round(p[k] * 10) + ',' + Math.round(p[k + 1] * 10), [q, acc]); } });
+    let nS = 0; const done = new Set(); W.forEach(o => { if (o.bridge || o.w.ghost) return; for (let k = 0; k < o.v.length; k++) { const id = o.v[k]; if (done.has(id) || use.has(id)) continue; const hit = bv.get(Math.round(o.x[k] * 10) + ',' + Math.round(o.z[k] * 10)); if (!hit) continue; const q = hit[0], f = hit[1] / q.len; if (f < .02 || f > .98) continue; q.ch.slaves.push([id, q.s0 + (q.s1 - q.s0) * f]); done.add(id); nS++; tieN.push([id, q, o.x[k], o.z[k]]); (T.ties2 || (T.ties2 = [])).push([Math.round(o.x[k]), Math.round(o.z[k]), +f.toFixed(2)]); } }); T.nTie2 = nS; }
   // gálibo: lo que cruza por debajo (calle, vía o camino) es un obstáculo que el tablero salva por encima
   const clrs = [], xp = [], X = (ax, az, bx, bz, cx, cz, dx, dz) => { const rx = bx - ax, rz = bz - az, sx = dx - cx, sz = dz - cz, den = rx * sz - rz * sx; if (Math.abs(den) < 1e-9) return -1; const t = ((cx - ax) * sz - (cz - az) * sx) / den, v = ((cx - ax) * rz - (cz - az) * rx) / den; return t >= 0 && t <= 1 && v >= 0 && v <= 1 ? t : -1; };
   br.forEach(o => { const p = o.w.p, ch = o.ch, seen = new Set(); let acc = 0;
@@ -222,6 +226,11 @@ export function initTerrain(M, ways, ext, aprons) {
       for (const q of plan) { const D = q[0], k = q[1], f = D.p.length > 2 ? k / (D.p.length / 2 - 1) : 0, sc = (D.s0 + (D.s1 - D.s0) * f) * C.Lt, w = smooth(Math.min(sc, C.Lt - sc) / 10); D.h[k] += (q[2] - D.h[k]) * w; }
       break; } }); }
 
+  // los atados a un tablero, a la altura final del tablero (que sale de la cuerda con la rampa limitada, y puede quedar algo por debajo de ella)
+  { const dH = (D, x, z) => { let bd = 1e9, h = 0; const p = D.p; for (let k = 0; k + 3 < p.length; k += 2) { const ax = p[k], az = p[k + 1], ex = p[k + 2] - ax, ez = p[k + 3] - az, t = cl(((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez || 1), 0, 1), dd = Math.hypot(x - ax - ex * t, z - az - ez * t); if (dd < bd) { bd = dd; h = D.h[k / 2] + (D.h[k / 2 + 1] - D.h[k / 2]) * t; } } return h; };
+    tieN.forEach(q => { if (q[1].w.deck) H[q[0]] = dH(q[1].w.deck, q[2], q[3]); });
+    tieB.forEach(q => { const id = q[0], P = q[1].w.deck; if (!P) return; const child = br.find(o => o.v[0] === id || o.v[1] === id), D = child && child.w.deck; if (!D) return; const x = NX[id], z = NZ[id], tg = dH(P, x, z), n = D.h.length, atStart = Math.hypot(D.p[0] - x, D.p[1] - z) < Math.hypot(D.p[n * 2 - 2] - x, D.p[n * 2 - 1] - z), e = atStart ? 0 : n - 1, dl = tg - D.h[e];
+      let acc = 0; for (let i = 0; i < n; i++) { const k = atStart ? i : n - 1 - i; if (i) acc += Math.hypot(D.p[k * 2] - D.p[(atStart ? k - 1 : k + 1) * 2], D.p[k * 2 + 1] - D.p[(atStart ? k - 1 : k + 1) * 2 + 1]); const w = 1 - smooth(acc / 30); if (w <= 0) break; D.h[k] += dl * w; } H[id] = tg; }); }
   // --- firme exacto: dentro de cada calle el suelo es el perfil de la calle (liso a lo largo, a nivel a lo ancho), no la malla de 5 m.
   // Cada vía guarda su perfil y una rejilla dice qué tramos pasan cerca de cada punto
   { const PW = T.pw = [], PG = T.pg = new Map();
