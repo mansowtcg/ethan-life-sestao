@@ -3,7 +3,7 @@ import { G } from './state.js';
 import { dialog, closeDialog, toast, banner, fade, eur, fmtTime, openMap } from './hud.js';
 import { SP } from './spots.js';
 import { W } from './world.js';
-import { ST, CAT } from './street.js';
+import { ST, CAT, RADAR } from './street.js';
 import { fiestas } from './fiestas.js';
 import { openAlbum } from './explore.js';
 import { SKY } from './sky.js';
@@ -338,6 +338,7 @@ let radioT = 25, radioI = Math.floor(Math.random() * RADIO.length), mainSt = nul
 // titulares que salen del propio juego: el tiempo que hace y una calle principal del mapa
 function liveLine() {
   if (!mainSt) { const set = new Set(); W.map.roads.forEach(r => { if (r.n && !r.x && !r.iso && (r.t === 'primary' || r.t === 'secondary' || r.t === 'tertiary') && !/^BI-|^N-|^A-/.test(r.n)) set.add(r.n); }); mainSt = [...set]; }
+  if (RADAR.cur && G.S.min < 840 && Math.random() < .35) return 'Tráfico: hoy hay radar móvil de la Policía Municipal en ' + RADAR.cur.n + '. Avisados quedáis.';
   if (fiestas(G.S) && Math.random() < .45) return say(['Sampedros: esta noche, concierto en la plaza del Kasko a las 22:00. Txosnas abiertas en Las Canteras.', 'Fiestas de San Pedro: el Kasko, lleno; Las Canteras, más. ¡Gora San Pedro!', 'Aviso de tráfico por los Sampedros: ni lo intentes por el Kasko esta noche.']);
   if (Math.random() < .5 || !mainSt.length) return 'El tiempo en Sestao: ' + SKY.label.toLowerCase() + '. ' + (SKY.rain > .3 ? 'El paraguas, ni lo cierres.' : SKY.cover > .62 ? 'El Serantes tiene txapela: paraguas.' : SKY.cover > .5 ? 'Paraguas por si acaso.' : 'Se ve el Serantes clarito. Aprovecha, que esto no dura.');
   return 'Tráfico: circulación lenta en ' + mainSt[Math.floor(Math.random() * mainSt.length)] + '. Lo de todos los días.';
@@ -352,9 +353,9 @@ export function tickRadio(dt) {
 // ---------- el móvil
 // ayuda: lo justo para quien llega de nuevas (en páginas, para que quepa en el móvil)
 const HELP = [
-  ['🎮 Controles', 'Ordenador: WASD para moverte, Mayús para correr, E para todo (entrar, hablar, coger el ascensor), F para subir o bajar del coche, Espacio freno de mano, V cambia la cámara, M el mapa, T el móvil y R la cámara rápida. Móvil: palanca a la izquierda, botones a la derecha, y se arrastra para mirar.'],
+  ['🎮 Controles', 'Ordenador: WASD para moverte, Mayús para correr, E para todo (entrar, hablar, coger el ascensor), F para subir o bajar del coche, Espacio freno de mano, V cambia la cámara, M el mapa, T el móvil y R la cámara rápida. Móvil: palanca a la izquierda, botones a la derecha, y se arrastra para mirar. Mando: palancas para moverte y mirar, gatillos para el coche, A para todo (la cruceta recorre los menús), B atrás, X el coche, Y la cámara, Start el móvil.'],
   ['⏰ El día de Ethan', 'Suena el despertador a las 6:30. A las 8:00 se ficha en el taller (de lunes a viernes) y se trabaja con minijuegos: tuercas, ruedas, aceite, averías, arrancar con pinzas, pulir arañazos y presupuestos de cabeza. De 13:00 a 15:00, parón para comer. A las 18:00, a casa. La agenda de la izquierda dice siempre qué toca y el GPS se pone solo.'],
-  ['🅿️ Aparcar', 'Por la tarde la zona de casa (cortina verde) está llena. Da vueltas: cuando se va alguien, te avisa y el GPS te lleva al hueco, pero vuela. Valla roja, ocupado; valla verde con haz de luz, libre. Si no hay manera, el parking grande (cortina azul). Sin el coche bien aparcado no se sube a dormir. Ojo con los badenes: por encima de 30 km/h, la suspensión lo paga.'],
+  ['🅿️ Aparcar', 'Por la tarde la zona de casa (cortina verde) está llena. Da vueltas: cuando se va alguien, te avisa y el GPS te lleva al hueco, pero vuela. Valla roja, ocupado; valla verde con haz de luz, libre. Si no hay manera, el parking grande (cortina azul). Sin el coche bien aparcado no se sube a dormir. Ojo con los badenes: por encima de 30 km/h, la suspensión lo paga. Y con el radar móvil: la radio y la agenda dicen en qué calle está cada día.'],
   ['🍢 Entre medias', 'En los bares del mapa: pintxo-pote (jueves y viernes por la tarde, tres bares), futbolín, mus y el partido del Athletic el finde. Frontones y campos para echar un partido, y domingo sí, domingo no, el Sestao River en Las Llanas a las 12:00. En casa: cocinar (si has hecho la compra en el súper), buzoneo y recados de la vecina. En la lonja de la cuadrilla (por la tarde entre semana, desde mediodía el finde): echar la tarde, la Play, el bote y, viernes y sábado por la noche, cena de cuadrilla. En el kebab, el bar y lo de Lourdes salen encargos. Los planes de cada día se eligen en el despertador.'],
   ['🎉 Sampedros', 'Del 19 al 29 de junio (días 19 a 29 de la partida, que empieza el lunes 1 de junio): fiestas de San Pedro. Por la noche, concierto en la plaza del Kasko a las 22:00, y txosnas en Las Canteras desde las 19:00 (el finde, desde mediodía).'],
   ['🗺️ Moverse por Sestao', 'Las escaleras, rampas mecánicas y ascensores públicos son atajos entre las calles de arriba y las de abajo. Metro (bajo los fosteritos de cristal) y tren llevan de una estación a otra, y desde las paradas el Bizkaibus te deja cerca de tus sitios. Si el Serantes tiene txapela, llueve. Si el coche se queda lejos, el móvil llama a la grúa.']];

@@ -2,6 +2,7 @@
 // comercios (con los nombres del mapa), bocas de metro, estaciones y los hitos de Sestao.
 import * as THREE from 'three';
 import { Vox, mat, voxText } from './vox.js';
+import { car as carBody } from './props.js';
 import { W, ROAD, Geo, instChunks, addProp, collide, inBuilding, inWaterPoly, inPoly, roadNear, bboxOf, canvasTex, nearJunc } from './world.js';
 import { rng } from './util.js';
 import { GR } from './graph.js';
@@ -130,8 +131,26 @@ export function buildStreet(M, root, q) {
     const refs = instChunks(root, v.geometry(), lit, list, { far: 260 * far, shadow: q > 1 }), lp = list.map((t, i) => soft(t[0], t[1], .14, 'sign', [refs[i]]));
     ['R', 'A', 'G'].forEach((n, i) => { const b = new Vox(); b.box(0, 3.78 - i * .31, .2, .2, .2, .04, 0xffffff); const m = W.mats['tl' + n] = new THREE.MeshBasicMaterial({ color: 0x222222 }); const rf = instChunks(root, b.geometry(), m, list, { far: 260 * far }); lp.forEach((p, k) => p.inst.push(rf[k])); }); }
 
-  calming(M, root); pitches(M, root, q, far); poiSigns(M, root, q, far); transit(M, root, q); landmarks(M, root, q); puente(root, q); plates(M, root, q, far);
+  calming(M, root); radar(M, root); pitches(M, root, q, far); poiSigns(M, root, q, far); transit(M, root, q); landmarks(M, root, q); puente(root, q); plates(M, root, q, far);
 }
+// ---------- límite de velocidad de una calle: el del mapa si lo trae; si no, el general en ciudad
+export function limitOf(r) { return !r ? 0 : r.lim || (r.t === 'living_street' || r.t === 'service' || r.t === 'track' ? 20 : /^(motorway|trunk|primary)/.test(r.t) || (/^secondary/.test(r.t) && (r.l || 0) >= (r.o ? 2 : 4)) ? 50 : 30); }
+// ---------- radar móvil de la Policía Municipal: cada día en una calle distinta (la radio lo avisa por la mañana)
+export const RADAR = { list: [], cur: null, g: null };
+function radarCands(M) { const L = []; M.roads.forEach((r, i) => { const sp = ROAD[r.t]; if (!sp || !sp[3] || r.b || r.u || !r.n || r.w < 6.5 || r.t === 'service') return; const p = r.p; let len = 0; for (let k = 0; k + 3 < p.length; k += 2) len += Math.hypot(p[k + 2] - p[k], p[k + 3] - p[k + 1]); if (len < 90) return;
+    let k = 0, acc = 0; while (k + 3 < p.length) { const l = Math.hypot(p[k + 2] - p[k], p[k + 3] - p[k + 1]); if (acc + l > len / 2) break; acc += l; k += 2; } const ax = p[k], az = p[k + 1], ex = p[k + 2] - ax, ez = p[k + 3] - az, l = Math.hypot(ex, ez) || 1, ux = ex / l, uz = ez / l, f = Math.min(1, (len / 2 - acc) / l);
+    const off = r.w / 2 + .9, x = ax + ex * f - uz * off, z = az + ez * f + ux * off; if (inBuilding(x, z) || inWaterPoly(x, z) || nearJunc(x, z, 8) || collide(x, z, 1.2, true).hit) return; L.push({ x, z, ux, uz, r, n: r.n }); }); return L; }
+export function radarFor(day) { const L = RADAR.list; if (!L.length) return null; const k = Math.abs(Math.sin(day * 12.9898) * 43758.5453) % 1; return L[Math.floor(k * L.length)]; }
+function radar(M, root) {
+  RADAR.list = radarCands(M); const v = new Vox(), info = carBody(v, 0xf2efe6, 'van'); v.bx(.1, .62, -info.W / 2 - .01, info.L - .1, .82, info.W / 2 + .01, 0x1f4fa8); v.bx(.1, .82, -info.W / 2 - .015, info.L - .1, .9, info.W / 2 + .015, 0xe0b23a);
+  [-1, 1].forEach(sd => { v.at(info.L / 2, 0, sd * (info.W / 2 + .02), sd > 0 ? 0 : Math.PI); voxText(v, 'POLICIA', 0, 1.05, 0, .045, .02, 0x1f4fa8, { center: true }); v.at(); });
+  v.bx(info.L * .45, info.H, -.5, info.L * .65, info.H + .14, .5, 0x1f4fa8); v.bx(info.L * .47, info.H + .14, -.35, info.L * .53, info.H + .22, -.05, 0x3a7aff); v.bx(info.L * .57, info.H + .14, .05, info.L * .63, info.H + .22, .35, 0xff3a3a);
+  v.box(info.L + .5, 0, 0, .1, .9, .1, 0x2c3036); v.box(info.L + .5, .9, 0, .32, .3, .26, 0x1a1c20);      // el trípode con la cámara, delante
+  const m = v.mesh('lit', 3), g = new THREE.Group(); m.position.x = -info.L / 2; g.add(m); g.visible = false; root.add(g); RADAR.g = g; RADAR.L = info.L; RADAR.prop = null;
+}
+export function placeRadar(day) { const c = radarFor(day); RADAR.cur = c; if (!RADAR.g) return; if (!c) { RADAR.g.visible = false; return; } RADAR.g.position.set(c.x, standY(c.x, c.z), c.z); RADAR.g.rotation.y = Math.atan2(-c.uz, c.ux); RADAR.g.visible = true;
+  if (RADAR.prop) { RADAR.prop.forEach(p => { p.x = 1e9; }); } RADAR.prop = [-1.5, 0, 1.5].map(o => addProp(c.x + c.ux * o, c.z + c.uz * o, 1.05, 'car')); }
+
 // ---------- badenes y pasos elevados del mapa (traffic_calming): mesa (paso elevado, 10 cm), lomo (8 cm) y bandas rugosas.
 // calmH(x, z) da cuánto levantan el firme en ese punto: el coche de Ethan lo nota (cabecea y, si pasa deprisa, se resiente)
 export const CALM = [];

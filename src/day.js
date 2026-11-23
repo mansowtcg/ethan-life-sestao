@@ -2,6 +2,7 @@
 // ficha en el taller, vuelve, busca sitio para aparcar, cena y a dormir. Los sucesos del Tycoon caen en su día y a su hora
 // y dejan las mismas mejoras y castigos que allí.
 import { G } from './state.js';
+import { RADAR } from './street.js';
 import { toast, banner, dialog, closeDialog, setTracker, fade, eur } from './hud.js';
 import { SP } from './spots.js';
 import { P } from './player.js';
@@ -230,7 +231,7 @@ export function openAgenda(back) {
     if (dy >= 19 && dy <= 29) E.push('Sampedros: concierto en el Kasko a las 22:00 y txosnas en Las Canteras'); else if (dy >= 12 && dy < 19) E.push('los Sampedros empiezan el día 19');
     if (d === 3 || d === 4) E.push('pintxo-pote esta tarde'); else if (d < 3) E.push('pintxo-pote el jueves y el viernes');
     if (d >= 5) E.push('el Athletic juega por la tarde'); if (wk % 2 === 0) E.push('el domingo el River juega en Las Llanas a las 12:00');
-    E.push('la lonja abre ' + (d >= 5 ? 'desde mediodía' : 'por la tarde')); L.push('Por Sestao: ' + E.join('; ') + '.'); }
+    E.push('la lonja abre ' + (d >= 5 ? 'desde mediodía' : 'por la tarde')); if (RADAR.cur) E.push('radar móvil hoy en ' + RADAR.cur.n); L.push('Por Sestao: ' + E.join('; ') + '.'); }
   const B = buffs().map(b => ({ t: b.ic + ' ' + b.n, d: '×' + String(b.x).replace('.', ',') + ' ' + KD[b.k], tag: Math.max(1, Math.ceil((b.u - t) / 60)) + ' h', dis: true, f: () => { } }));
   const N = (S.daily.notes || []).slice(-4).reverse().map(n => ({ t: n[0] + ' ' + n[1], d: n[2], tag: hm(n[3] || 0), dis: true, f: () => { } }));
   dialog({ icon: '🗓️', title: WDAY[wd(S)] + ' ' + dom(S) + ' · ' + hm(S.min), text: L.join(' ') + ' Momentos del Tycoon vividos: ' + Object.keys(S.mom || {}).length + ' de ' + Object.keys(EVN).length + '.', close: back ? 'Volver' : 'Cerrar', onClose: back || null, options: [{ t: '🗓️ Plan de hoy', d: OF.length ? 'A qué te apuntas y de qué pasas' : 'Nada propuesto', tag: OF.length ? String(OF.length) : '', dis: !OF.length, f: () => openPlan(() => openAgenda(back)) }].concat(bp ? [{ t: '🅿️ GPS al parking grande', d: 'Donde acaba el coche cuando no hay sitio en tu zona', f: () => { closeDialog(); G.setDest({ x: bp.x, z: bp.z, n: 'Parking grande', icon: '🅿️', in: 1 }); } }] : [], B, N) });

@@ -4,7 +4,7 @@ import { G, dampAng, angDiff } from './state.js';
 import { I, initInput, poll } from './input.js';
 import { roadNear, W, extend, buildWorld, collide, inWaterPoly, wallBetween, roadW, knockProp, clampWorld, tickWorld, updateLods, tubeAt } from './world.js';
 import { initSky, updateSky, tickSky, setFogBase, SKY } from './sky.js';
-import { buildStreet, tickStreet, poiAt, transitAt, busAt, calmH, ST, CAT } from './street.js';
+import { buildStreet, tickStreet, poiAt, transitAt, busAt, calmH, limitOf, RADAR, placeRadar, ST, CAT } from './street.js';
 import { buildFiestas, tickFiestas, fiestaAt } from './fiestas.js';
 import { initTrains, updateTrains, trainHit, TRN } from './trains.js';
 import { mat } from './vox.js';
@@ -51,14 +51,14 @@ function boot() {
   G.mapId = (M.src || '') + ':' + M.bbox.map(Math.round).join(',');
   G.fx = new FX(scene, 220); initPlayer(scene); car = G.car = new Car('c4'); scene.add(car.g); initPeds(scene, 12);
   head = new THREE.SpotLight(0xfff2cc, 0, 60, .6, .7, 1.5); head.position.set(0, .9, 1.6); head.target.position.set(0, 0, 14); car.g.add(head, head.target); head.visible = true;
-  initHud(); initInput(cv); I.press = onKey; applyQuality(sc0); addEventListener('resize', resize); $('prompt').addEventListener('click', () => onKey($('prompt').dataset.k || 'KeyE'));
+  initHud(); initInput(cv); I.press = onKey; I.onPad = () => toast('Mando conectado: palancas para moverte y mirar, gatillos para el coche, A para todo, B para atrás, X el coche, Start el móvil.', '🎮'); applyQuality(sc0); addEventListener('resize', resize); $('prompt').addEventListener('click', () => onKey($('prompt').dataset.k || 'KeyE'));
   document.addEventListener('visibilitychange', () => { if (document.hidden) { saveGame(); engine(false, 0, 0); } });
   // partida
   const saved = loadGame(); G.S = saved || newGame(); G.title = true; placeAll(!saved || saved.map !== G.mapId); dress(P.ethan, G.S.cq);
   $('t-load').textContent = saved ? 'Partida guardada: día ' + saved.day + '.' : 'WASD o la palanca para moverte. E o el botón A para todo lo demás.'; $('t-map').textContent = M.src === 'provisional' ? 'Mapa provisional, trazado a mano.' : (M.attribution || '');
   $('t-go').textContent = saved ? 'Continuar' : 'Jugar'; $('t-go').disabled = false; $('t-go').onclick = () => start(false); $('t-new').hidden = !saved; $('t-new').onclick = () => start(true);
   G.drone = setDrone; G.setDest = setDest; G.leaveCar = leaveCar; G.enterCar = enterCar; G.swapCar = id => { car.setModel(id); car.g.add(head, head.target); }; G.towCar = towCar; G.setQuality = n => { autoQ = !n; G.q = n || (G.soft ? 1 : 2); noUp = 0; upHold = 10; fAvg = .0167; ad.off = false; ad.ref = ad.bad = ad.q2 = ad.slow = 0; try { if (n) localStorage.setItem('els_q', n); else localStorage.removeItem('els_q'); localStorage.removeItem('els_ad'); } catch (e) { } applyQuality(); G.autoQ = autoQ; }; G.autoQ = autoQ; G.rscale = () => scale; G.adapt = adapt; G.adState = () => ad; G.restart = () => { G.S = newGame(); placeAll(true); dress(P.ethan, []); car.setModel('c4'); car.g.add(head, head.target); G.mission && G.endMission(false); intro(); };
-  window.ELS = { roadNear, G, P, W, GR, SP, ST, TR, TRN, SKY, PED, PK, ZONE, NET, marks, tickMarks, parkState, DAY: { ps: parkDbg, bigPark, carOK, offers }, car, I, tick, renderer, scene, T, terr: { gY, mY, standY }, setFogBase, nav: { nearestNode, nearestEdge, route, routeTo, laneOffset } };
+  window.ELS = { roadNear, G, P, W, GR, SP, ST, RADAR, TR, TRN, SKY, PED, PK, ZONE, NET, marks, tickMarks, parkState, DAY: { ps: parkDbg, bigPark, carOK, offers }, car, I, tick, renderer, scene, T, terr: { gY, mY, standY }, setFogBase, nav: { nearestNode, nearestEdge, route, routeTo, laneOffset } };
   updateSky(0, true); warm(); G.bootMs = Math.round(performance.now() - tb0); try { initNet(); titleNet(); } catch (e) { } requestAnimationFrame(frame);
 }
 function start(fresh) {
@@ -143,6 +143,10 @@ function drive(dt) {
   for (const c of TR.list) { if (Math.abs(c.y - car.y) > 2.4) continue; const L = c.info.L > 5 ? [-2.5, 0, 2.5] : [0], s2 = Math.sin(c.yaw), c2 = Math.cos(c.yaw); for (const o of L) { const i2 = car.bump(c.x + s2 * o, c.z + c2 * o, 1.15); if (i2 > 0) { c.bumpT = 1.8; if (i2 > 3 && !c.honk) { c.honk = 1; sfx('horn'); if (Math.random() < .5) toast(['«¡Mira por dónde vas!»', '«¿Te han dado el carnet en una tómbola?»', '«¡Que es de mi cuñado!»'][Math.floor(Math.random() * 3)], '🚗'); } imp = Math.max(imp, i2); } } }
   { const ti = trainHit(car, null); if (ti > 0) { imp = Math.max(imp, ti); if (ti > 6 && !G.S.warn.tr) { G.S.warn.tr = 1; toast('El tren no frena por nadie.', '🚆'); setTimeout(() => { G.S.warn.tr = 0; }, 9000); } } }
   if (imp > 2.5) crash(imp, car.x + sy * 1.8, car.z + cy * 1.8);
+  // radar móvil: si pasas a su lado más de 10 km/h por encima del límite, multa (una al día). Flash incluido
+  { const R = RADAR.cur; if (R && !S.daily.radar && Math.hypot(car.x - R.x, car.z - R.z) < 16) { const rn = roadNear(car.x, car.z, 6, true), lim = limitOf(rn.r && rn.d < 1.5 ? rn.r : R.r), kmh = Math.abs(car.vf) * 3.6;
+      if (lim && kmh > lim + 10) { S.daily.radar = 1; const fine = Math.min(S.money, 50); money(-fine, 'multa del radar'); sfx('tick'); { const f = document.createElement('div'); f.style.cssText = 'position:fixed;inset:0;background:#fff;opacity:.85;pointer-events:none;z-index:50;transition:opacity .6s'; document.body.appendChild(f); requestAnimationFrame(() => requestAnimationFrame(() => { f.style.opacity = '0'; })); setTimeout(() => f.remove(), 800); }
+        banner('📸 Radar de la Policía Municipal', 'A ' + Math.round(kmh) + ' km/h por ' + R.n + ' (límite ' + lim + '). Multa de 100 €: 50 € con pronto pago.', 4200); } } }
   // badenes: pasarlos deprisa se paga en la suspensión
   { const h = calmH(car.x, car.z), sp = Math.abs(car.vf); if (h > .03 && !G.onCalm) { G.onCalm = 1; if (sp > 8.6) { const k = (sp - 8.6) / 5; car.vf *= .82; S.dmg = Math.min(100, S.dmg + 1 + k * 3); sfx('hit'); if (G.fx && G.fx.shake) G.fx.shake(.25 + k * .2); if (!S.warn.calm) { S.warn.calm = 1; toast('¡Ese badén a ' + Math.round(sp * 3.6) + ' km/h! Por encima de 30, la suspensión sufre.', '🚧'); setTimeout(() => { S.warn.calm = 0; }, 20000); } } } else if (h < .005) G.onCalm = 0; }
   if (S.dmg < 100) S.warn.d = 0;
@@ -240,7 +244,7 @@ function tick(dt) { // un paso de juego, sin dibujar
   engine(G.mode === 'car' && !G.title && !G.busy, car.vf, I.my); ambience({ on: !G.title, day: 1 - G.night, rain: SKY.rain, train: TRN.near, trainV: TRN.v, inCar: G.mode === 'car' });
   updateSpots(dt, t, G.px, G.pz); updateCamera(dt); if ((skyT -= dt) < 0) { updateSky(.4 + skyT); skyT = .4; lights(); const hr = (G.S ? G.S.min : 600) / 60 % 24, we = G.S && (G.S.day - 1) % 7 >= 5, rush = !we && ((hr >= 7.5 && hr < 9.2) || (hr >= 17.5 && hr < 19.5)) ? 1 : hr >= 14 && hr < 16 ? .72 : we && hr < 11 ? .6 : .88;      // horas punta entre semana; a la hora de comer y el domingo por la mañana, menos
     const quiet = (G.night > .7 ? .4 : SKY.rain > .4 ? .7 : 1) * rush, paseo = (we && hr >= 11 && hr < 14) || (hr >= 18 && hr < 21) ? 1.15 : 1; TR.max = TR.cap ? Math.max(2, Math.round(TR.cap * quiet)) : 0; PED.max = PED.cap ? Math.max(1, Math.min(PED.cap, Math.round(PED.cap * quiet / rush * paseo * (SKY.rain > .4 ? .6 : 1)))) : 0; /* de noche y con lluvia hay menos gente */ } tickSky(dt); G.fx.update(dt); updateHud(dt);
-  tickWorld(dt); tickStreet(t, camera, scene.fog && scene.fog.color); tickFiestas(dt, t); if ((lodT -= dt) < 0) { lodT = .5; updateLods(camera.position.x, camera.position.z); }
+  tickWorld(dt); tickStreet(t, camera, scene.fog && scene.fog.color); tickFiestas(dt, t); if (G.S && RADAR.day !== G.S.day) { RADAR.day = G.S.day; placeRadar(G.S.day); } if ((lodT -= dt) < 0) { lodT = .5; updateLods(camera.position.x, camera.position.z); }
 }
 // ritmo: media móvil del tiempo por fotograma. Si no llega a unos 42 por segundo baja la resolución y, si ni así, la calidad;
 // si luego va sobrado, lo recupera poco a poco. Si recortar no sirve de nada (el freno no es la gráfica: pantalla a 30 Hz, ahorro de energía…)
