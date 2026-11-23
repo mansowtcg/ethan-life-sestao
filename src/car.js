@@ -100,7 +100,7 @@ export function spawnTraffic(scene, px, pz) {
   if (ne.e < 0 || ne.d > 45 || ne.road.u) return; const e = ne.e, rd = ne.road, fwd = rd.o || Math.random() < .5;
   const c = { e, a: fwd ? GR.ea[e] : GR.eb[e], b: fwd ? GR.eb[e] : GR.ea[e], s: (fwd ? ne.t : 1 - ne.t) * GR.el[e], v: 6, road: rd, bumpT: 0, stuck: 0, turn: 0, honk: 0 };
   target(c, _t); if (Math.hypot(_t.x - px, _t.z - pz) < 95) return; for (const o of TR.list) if (Math.hypot(o.x - _t.x, o.z - _t.z) < 18) return;
-  const q = Math.random(), big = rd.w >= 6.5, type = q < .1 && big ? 'van' : q < .17 ? 'sport' : q < .21 && rd.w >= 8 && rd.t !== 'residential' ? 'bus' : 'hatch'; c.g = pooled(type, type === 'bus' ? 0xd0322e : COLS[Math.floor(Math.random() * COLS.length)]); c.info = c.g.userData.info;
+  const q = Math.random(), big = rd.w >= 6.5, type = q < .1 && big ? 'van' : q < .17 ? 'sport' : q < .21 && rd.w >= 8 && rd.t !== 'residential' ? 'bus' : 'hatch'; c.g = pooled(type, type === 'bus' ? 0x5c9e3a : COLS[Math.floor(Math.random() * COLS.length)]); c.info = c.g.userData.info;
   c.x = _t.x; c.z = _t.z; c.yaw = Math.atan2(_t.ux, _t.uz); c.y = roadY(c.road, c.x, c.z); c.pitch = 0; c.g.position.set(c.x, c.y, c.z); c.g.rotation.y = c.yaw; scene.add(c.g); TR.list.push(c);
 }
 // obs: [x, z, radio, altura, ...] de lo que deben respetar (Ethan a pie y su coche). now: reloj del juego, para los semáforos

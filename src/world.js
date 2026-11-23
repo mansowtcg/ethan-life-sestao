@@ -663,7 +663,38 @@ export function buildWorld(M, quality) {
                 else { bar(ax, ay, az, bx, by, bz, .5, .78, nx, nz, .05, cS, cS2); }
                 W.segY[W.segs.length / 5] = Math.min(ay, by) - 1.2; W.segs.push(ax, az, bx, bz, Math.max(ay, by) + H); } } }
           k = e + 1; } } });
-    if (g.nv) splitGeo(g, 200).forEach(q => { const m = new THREE.Mesh(q, lit); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; root.add(m); nearOnly(m, 360); }); W.guard = { runs: nRun, m: Math.round(len), list: GL }; }
+    if (g.nv) splitGeo(g, 200).forEach(q => { const m = new THREE.Mesh(q, lit); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; root.add(m); nearOnly(m, 360); }); W.guard = { runs: nRun, m: Math.round(len), list: GL };
+    // muros de contención: donde la calle va metida en la ladera (el monte sube nada más pasar la acera) o colgada sobre ella (baja de golpe),
+    // un muro de piedra al borde de la acera, como los de tantas calles de Sestao, en vez de un talud de tierra imposible
+    { const wg = new Geo(), cF = [lin(0x9d978a), lin(0xa49c8c), lin(0x8f8c84)], cT = lin(0xbdb6a6), cB = lin(0x6f6b63); let wRun = 0, wLen = 0; const WL = [];
+      const face = (ax, az, ay0, ay1, bx, bz, by0, by1, nx, nz, col) => wg.quad(wg.v(bx, by0, bz, nx, 0, nz, col), wg.v(ax, ay0, az, nx, 0, nz, col), wg.v(ax, ay1, az, nx, 0, nz, col), wg.v(bx, by1, bz, nx, 0, nz, col));
+      M.roads.forEach(r => { const sp = ROAD[r.t]; if (!sp || !sp[3] || r.b || r.u) return; const p = densify(r.p, 2.5), n = p.length / 2; if (n < 4) return;
+        const bare = r.t === 'service' || r.t === 'track', bo = r.w / 2 + (bare ? .45 : r.sw ? r.sw + .12 : 1.2);
+        const X = new Float32Array(n), Z = new Float32Array(n), UX = new Float32Array(n), UZ = new Float32Array(n), Y = new Float32Array(n);
+        for (let k = 0; k < n; k++) { const a = Math.max(0, k - 1), b = Math.min(n - 1, k + 1); let ux = p[b * 2] - p[a * 2], uz = p[b * 2 + 1] - p[a * 2 + 1]; const l = Math.hypot(ux, uz) || 1; X[k] = p[k * 2]; Z[k] = p[k * 2 + 1]; UX[k] = ux / l; UZ[k] = uz / l; Y[k] = surf(r, X[k], Z[k]); }
+        for (const sd of [1, -1]) { const up = new Int8Array(n), hard = new Uint8Array(n), HU = new Float32Array(n), HD = new Float32Array(n), BX = new Float32Array(n), BZ = new Float32Array(n), BY = new Float32Array(n);
+          for (let k = 0; k < n; k++) { const nx = UZ[k] * sd, nz = -UX[k] * sd, x = X[k], z = Z[k], y = Y[k], bx = x + nx * bo, bz = z + nz * bo; BX[k] = bx; BZ[k] = bz; BY[k] = surf(r, bx, bz) + RISE - .04;
+            if (k === 0 || k === n - 1 || nearJunc(bx, bz, 2) || cross(bx, bz, y, r, .6) || cross(x + nx * (bo + 1.2), z + nz * (bo + 1.2), y, r, .4) || cross(x + nx * (bo + 2.6), z + nz * (bo + 2.6), y, r, .3)) { hard[k] = 1; continue; }
+            const q1x = x + nx * (bo + 2.4), q1z = z + nz * (bo + 2.4), q2x = x + nx * (bo + 4), q2z = z + nz * (bo + 4), q3x = x + nx * (bo + 6), q3z = z + nz * (bo + 6);
+            if (inBuilding(q1x, q1z) || inBuilding(bx + nx * .4, bz + nz * .4) || inWaterPoly(q1x, q1z) || inWaterPoly(q2x, q2z) || tubeAt(q1x, q1z)) { hard[k] = 1; continue; }
+            const rn = roadNear(q2x, q2z, 8, false); if (rn.d < .4 && rn.r !== r) { hard[k] = 1; continue; }
+            const h1 = mY(q1x, q1z) - y, h2 = mY(q2x, q2z) - y, h3 = mY(q3x, q3z) - y;
+            if (h1 > 1 && h2 > 1.8) { up[k] = 1; HU[k] = Math.min(9, Math.max(h1, h2 * .85, h3 * .6)); } else if (h1 < -1.2 && h2 < -2) { up[k] = -1; HD[k] = Math.min(12, -Math.min(h2, h3)); } }
+          for (const w of [1, -1]) { const on = k => up[k] === w && !hard[k];
+            for (let k = 0; k < n;) { if (!on(k)) { k++; continue; } let e = k; while (e + 1 < n && (on(e + 1) || (e + 2 < n && on(e + 2) && !hard[e + 1]))) e++; if (e - k < 3) { k = e + 1; continue; }
+              wRun++; WL.push([Math.round(BX[(k + e) >> 1]), Math.round(BZ[(k + e) >> 1]), w, Math.round((e - k) * 2.5)]); const col = cF[wRun % 3];
+              const hh = i => { const H = w > 0 ? HU : HD; let s = 0, c = 0; for (let j = Math.max(k, i - 1); j <= Math.min(e, i + 1); j++) if (up[j] === w) { s += H[j]; c++; } const t = Math.min(1, (i - k + .5) / 2, (e - i + .5) / 2); return (c ? s / c : 0) * t; };
+              for (let i = k; i < e; i++) { const i0 = sd > 0 ? i : i + 1, i1 = sd > 0 ? i + 1 : i;      // del lado izquierdo se recorre al revés: así la cara buena siempre mira a donde debe
+                const ax = BX[i0], az = BZ[i0], bx = BX[i1], bz = BZ[i1], dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz) || 1, nx = dz / l, nz = -dx / l, ha = hh(i0), hb = hh(i1), oa = .12, ox = nx * oa, oz = nz * oa; wLen += l;
+                if (w > 0) { const a0 = BY[i0] - .15, b0 = BY[i1] - .15, a1 = BY[i0] + ha, b1 = BY[i1] + hb;      // muro que sujeta la ladera: cara hacia la calle, zócalo y albardilla
+                  face(bx + ox, bz + oz, b0, b1, ax + ox, az + oz, a0, a1, -nx, -nz, col); face(bx + ox * .9, bz + oz * .9, b0, b0 + .45, ax + ox * .9, az + oz * .9, a0, a0 + .45, -nx, -nz, cB);
+                  wg.quad(wg.v(ax + ox, a1, az + oz, 0, 1, 0, cT), wg.v(bx + ox, b1, bz + oz, 0, 1, 0, cT), wg.v(bx + ox + nx * .45, b1, bz + oz + nz * .45, 0, 1, 0, cT), wg.v(ax + ox + nx * .45, a1, az + oz + nz * .45, 0, 1, 0, cT));
+                  face(ax + ox + nx * .45, az + oz + nz * .45, a1 - .25, a1, bx + ox + nx * .45, bz + oz + nz * .45, b1 - .25, b1, nx, nz, cT);
+                  W.segY[W.segs.length / 5] = Math.min(a0, b0); W.segs.push(ax + ox, az + oz, bx + ox, bz + oz, Math.min(a1, b1)); }
+                else { const a1 = BY[i0] - .05, b1 = BY[i1] - .05, a0 = a1 - ha - .4, b0 = b1 - hb - .4;      // muro bajo una calle colgada: cara hacia fuera
+                  face(ax + ox, az + oz, a0, a1, bx + ox, bz + oz, b0, b1, nx, nz, col); } } k = e + 1; } } } });
+      if (wg.nv) splitGeo(wg, 240).forEach(q => { const m = new THREE.Mesh(q, lit); m.castShadow = true; m.receiveShadow = true; m.matrixAutoUpdate = false; root.add(m); });
+      W.rwall = { runs: wRun, m: Math.round(wLen), list: WL }; } }
   // muros, vallas, setos y muros de contención del mapa (barrier=*): siguen el terreno, chocan, y se abren donde los cruza una calle, un camino o una acera
   if (M.bar && M.bar.length) { const g = new Geo(), gp = new Geo(true), cnt = {}; let len = 0;
     const COL = { w: 0xbdb6a6, b: 0x9a5644, s: 0x9d968a, r: 0xa9a397, j: 0xcfcbc1, h: 0x4f7a3c, g: 0xb9bfc5 }, cP = lin(0x3b4842), cT = lin(0xd8d2c4);

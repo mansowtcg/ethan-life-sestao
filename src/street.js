@@ -29,6 +29,28 @@ export function buildStreet(M, root, q) {
     instChunks(root, tv.geometry(), lit, A, { shadow: q > 1, far: 330 * far, ground: true }); instChunks(root, tt.geometry(), lit, T, { shadow: q > 1, far: 330 * far, ground: true });
     A.concat(T).forEach(t => addProp(t[0], t[1], .28 * t[4], 'tree')); ST.trees = A.length + T.length; }
 
+  // ---------- huertas (las del mapa): parcelas de tierra con surcos de lechugas, tomateras con sus cañas o recién cavadas, y la chabola de las herramientas
+  { const let_ = [], tom = [], sheds = [], drums = [], soil = []; let nH = 0, budget = 3200;
+    (M.green || []).forEach((a, ai) => { if (a.k !== 'allot') return; const P = a.p, n = P.length / 2; if (n < 3) return; const b = bboxOf(P), A = (b[2] - b[0]) * (b[3] - b[1]); if (A < 60) return; nH++;
+      let best = 0, ux = 1, uz = 0; for (let k = 0; k < n; k++) { const j = (k + 1) % n, dx = P[j * 2] - P[k * 2], dz = P[j * 2 + 1] - P[k * 2 + 1], l = Math.hypot(dx, dz); if (l > best) { best = l; ux = dx / l; uz = dz / l; } }
+      const cx = (b[0] + b[2]) / 2, cz = (b[1] + b[3]) / 2, R = Math.hypot(b[2] - b[0], b[3] - b[1]) / 2, at = (u, v) => [cx + ux * u - uz * v, cz + uz * u + ux * v], ok = (x, z) => inPoly(P, x, z) && clear(x, z, .4) && !nearJunc(x, z, 1);
+      const rr = rng(ai * 131 + 7), plots = []; for (let v = -R; v <= R; v += 6.4) for (let u = -R; u <= R; u += 8.6) { if ([[0, 0], [-3.5, -2.5], [3.5, -2.5], [-3.5, 2.5], [3.5, 2.5]].every(q => { const w = at(u + q[0], v + q[1]); return ok(w[0], w[1]); })) plots.push([u, v]); }
+      for (let k = plots.length - 1; k > 0; k--) { const j = Math.floor(rr() * (k + 1)), t = plots[k]; plots[k] = plots[j]; plots[j] = t; }
+      let mine = Math.min(budget, 340, Math.round(A / 10)), shedDone = A < 150; const yaw = Math.atan2(ux, uz);
+      for (const pl of plots) { if (mine <= 0) break; const c = at(pl[0], pl[1]); soil.push([c[0], c[1], yaw, 0, 1]);
+        if (!shedDone) { const s2 = at(pl[0] + 5.6, pl[1]); if (ok(s2[0], s2[1])) { sheds.push([s2[0], s2[1], yaw + Math.PI / 2, 0, 1, [0x5f7f5a, 0x51708a, 0x8a7a5a, 0x7a7f84][Math.floor(rr() * 4)]]); addProp(s2[0], s2[1], 1.4, 'deco'); const d2 = at(pl[0] + 5.6, pl[1] + 1.8); if (rr() < .7 && ok(d2[0], d2[1])) drums.push([d2[0], d2[1], rr() * 6.28]); shedDone = true; } }
+        const crop = rr(); if (crop < .18) continue; const tomato = crop > .62, dv = tomato ? 1.2 : .9, du = tomato ? .8 : .6;
+        for (let v = -2 + dv / 2; v < 2; v += dv) for (let u = -3.1; u <= 3.1; u += du) { const w = at(pl[0] + u, pl[1] + v); (tomato ? tom : let_).push([w[0] + (rr() - .5) * .1, w[1] + (rr() - .5) * .1, rr() * 6.28, 0, .8 + rr() * .4]); mine--; budget--; } } });
+    const lv = new Vox(); lv.box(0, 0, 0, .42, .2, .42, 0x7fb04a); lv.box(0, .12, 0, .26, .16, .26, 0x95c45a);
+    const tv = new Vox(); tv.box(0, 0, 0, .05, 1.35, .05, 0xb59a6a); tv.box(0, 0, 0, .38, .75, .38, 0x4f8a3c); tv.box(.06, .5, .05, .1, .1, .1, 0xc8402e); tv.box(-.1, .3, -.08, .09, .09, .09, 0xd85a32);
+    const sv = new Vox(); sv.box(0, 0, 0, 2.3, 1.9, 1.7, 0xffffff, { top: 0x6a6e74 }); sv.bx(-1.3, 1.9, -1.05, 1.3, 2.05, 1.05, 0x8d9399); sv.box(.5, 0, .86, .7, 1.6, .04, 0x3a3f46);
+    const dv = new Vox(); dv.box(0, 0, 0, .55, .85, .55, 0x2f6fb0, { top: 0x23527f });
+    const ov = new Vox(); ov.box(0, -.06, 0, 5, .1, 7, 0x6e5a3e, { flat: true }); for (let k = -2; k <= 2; k++) ov.box(k * 1, .03, 0, .32, .05, 6.8, 0x5f4c33, { flat: true });
+    instChunks(root, ov.geometry(), lit, soil, { far: 220 * far, ground: true, tilt: true });
+    instChunks(root, lv.geometry(), lit, let_, { far: 160 * far, ground: true }); instChunks(root, tv.geometry(), lit, tom, { far: 170 * far, ground: true });
+    instChunks(root, sv.geometry(), lit, sheds, { far: 260 * far, shadow: q > 1, ground: true, color: true }); instChunks(root, dv.geometry(), lit, drums, { far: 140 * far, ground: true });
+    ST.huertas = { n: nH, plots: soil.length, plants: let_.length + tom.length, sheds: sheds.length }; }
+
   // ---------- farolas, alternando acera
   { const lamps = []; let total = 0; const ok = rd => { const sp = ROAD[rd.t]; return sp && sp[3] && rd.t !== 'service' && rd.t !== 'track' && rd.t.indexOf('_link') < 0 && !rd.u && !rd.pr; };
     M.roads.forEach(rd => { if (!ok(rd)) return; for (let k = 0; k + 3 < rd.p.length; k += 2) total += Math.hypot(rd.p[k + 2] - rd.p[k], rd.p[k + 3] - rd.p[k + 1]); });
@@ -99,8 +121,37 @@ export function buildStreet(M, root, q) {
     const refs = instChunks(root, v.geometry(), lit, list, { far: 260 * far, shadow: q > 1 }), lp = list.map((t, i) => soft(t[0], t[1], .14, 'sign', [refs[i]]));
     ['R', 'A', 'G'].forEach((n, i) => { const b = new Vox(); b.box(0, 3.78 - i * .31, .2, .2, .2, .04, 0xffffff); const m = W.mats['tl' + n] = new THREE.MeshBasicMaterial({ color: 0x222222 }); const rf = instChunks(root, b.geometry(), m, list, { far: 260 * far }); lp.forEach((p, k) => p.inst.push(rf[k])); }); }
 
-  poiSigns(M, root, q, far); transit(M, root, q); landmarks(M, root, q); puente(root, q);
+  poiSigns(M, root, q, far); transit(M, root, q); landmarks(M, root, q); puente(root, q); plates(M, root, q, far);
 }
+// ---------- placas con el nombre de la calle en las esquinas: en la fachada si la hay, si no en un poste. Un atlas de nombres en un canvas
+function plates(M, root, q, far) {
+  const names = [], idx = new Map(), list = [], byName = new Map(), CW = q === 1 ? 128 : 192, CH = q === 1 ? 32 : 48, PER = q === 1 ? 16 : 10;      // atlas pequeño: en calidad baja, 2048×512
+  const free = (x, z) => !inBuilding(x, z) && !inWaterPoly(x, z);
+  M.roads.forEach(r => { const sp = ROAD[r.t]; if (!r.n || !sp || r.t === 'steps' || r.t === 'footway' || r.t === 'path' || r.t === 'track' || r.t === 'service' || r.b || r.u) return; const p = r.p, n = p.length / 2; if (n < 2) return;
+    let L = 0; for (let k = 0; k + 3 < p.length; k += 2) L += Math.hypot(p[k + 2] - p[k], p[k + 3] - p[k + 1]); if (L < 14) return;
+    for (const end of [0, 1]) { const a = end ? n - 1 : 0, b = end ? n - 2 : 1, x0 = p[a * 2], z0 = p[a * 2 + 1]; if (!nearJunc(x0, z0, 1.5)) continue; let ux = p[b * 2] - x0, uz = p[b * 2 + 1] - z0; const l = Math.hypot(ux, uz) || 1; ux /= l; uz /= l;
+      const d0 = Math.min(l - 1, 4 + r.w / 2), sd = end ? -1 : 1, nx = uz * sd, nz = -ux * sd, side = r.w / 2 + (r.sw || 1.2) * .6, bx = x0 + ux * d0 + nx * side, bz = z0 + uz * d0 + nz * side; if (!free(bx, bz)) continue;
+      const seen = byName.get(r.n) || []; if (seen.some(o => Math.hypot(o[0] - bx, o[1] - bz) < 45) || list.length > 520) continue;
+      let wx = 0, wz = 0, wall = false; for (let t = .3; t < 5; t += .3) { const x = bx + nx * t, z = bz + nz * t; if (inBuilding(x, z)) { wall = true; break; } wx = x; wz = z; }
+      if (!wall) { wx = bx; wz = bz; } if (roadNear(wx, wz, 9, true).d < .3) continue;
+      let id = idx.get(r.n); if (id === undefined) { if (names.length >= 256) continue; id = names.length; idx.set(r.n, id); names.push(r.n); }
+      seen.push([bx, bz]); byName.set(r.n, seen); list.push({ x: wx, z: wz, nx: -nx, nz: -nz, ux, uz, wall, id }); } });
+  if (!list.length) return; ST.plates = list.length; ST.plateList = list;
+  const tex = canvasTex(CW * PER, CH * Math.ceil(names.length / PER), (g, w, h) => { names.forEach((nm, i) => { const x = (i % PER) * CW, y = Math.floor(i / PER) * CH; g.fillStyle = '#1f3f7a'; g.fillRect(x, y, CW, CH); g.strokeStyle = '#f2efe6'; g.lineWidth = Math.max(1.5, CH / 21); const ins = Math.round(CH / 16); g.strokeRect(x + ins, y + ins, CW - ins * 2, CH - ins * 2);
+    g.fillStyle = '#f2efe6'; g.textAlign = 'center'; g.textBaseline = 'middle'; let fs = Math.round(CH * .38); g.font = '800 ' + fs + 'px system-ui, sans-serif'; while (g.measureText(nm).width > CW - CH * .34 && fs > 8) { fs--; g.font = '800 ' + fs + 'px system-ui, sans-serif'; } g.fillText(nm, x + CW / 2, y + CH / 2 + 1); }); }, { anis: 4 });
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping; const rows = Math.ceil(names.length / PER), P = [], N = [], U = [], I = [], poles = [];
+  const quad = (cx, cy, cz, tx, tz, nx, nz, id, flip) => { const hw = .55, hh = .14, u0 = (id % PER) / PER, u1 = u0 + 1 / PER, v1 = 1 - Math.floor(id / PER) / rows, v0 = v1 - 1 / rows, a = P.length / 3, e = .004 / PER, ua = flip ? u1 - e : u0 + e, ub = flip ? u0 + e : u1 - e;
+    P.push(cx - tx * hw, cy - hh, cz - tz * hw, cx + tx * hw, cy - hh, cz + tz * hw, cx + tx * hw, cy + hh, cz + tz * hw, cx - tx * hw, cy + hh, cz - tz * hw); for (let k = 0; k < 4; k++) N.push(nx, 0, nz); U.push(ua, v0 + .002, ub, v0 + .002, ub, v1 - .002, ua, v1 - .002); I.push(a, a + 1, a + 2, a, a + 2, a + 3); };
+  list.forEach(o => { const y = gY(o.x, o.z) + (o.wall ? 2.8 : 2.66);
+    // la placa se lee de frente: su eje es el de la calle (u) y mira hacia la calzada (n); en poste, por las dos caras
+    let tx = o.ux, tz = o.uz; if (tx * o.nz - tz * o.nx < 0) { tx = -tx; tz = -tz; }
+    if (o.wall) quad(o.x + o.nx * .06, y, o.z + o.nz * .06, tx, tz, o.nx, o.nz, o.id, false);
+    else { quad(o.x + o.nx * .05, y, o.z + o.nz * .05, tx, tz, o.nx, o.nz, o.id, false); quad(o.x - o.nx * .05, y, o.z - o.nz * .05, -tx, -tz, -o.nx, -o.nz, o.id, false); poles.push([o.x, o.z, Math.atan2(o.nx, o.nz)]); addProp(o.x, o.z, .1, 'sign'); } });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.setIndex(I);
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: tex })); m.matrixAutoUpdate = false; root.add(m);
+  const pv = new Vox(); pv.box(0, 0, 0, .07, 2.31, .07, 0x3a3f46); pv.box(0, 2.29, 0, 1.12, .04, .05, 0x3a3f46); instChunks(root, pv.geometry(), mat('lit'), poles, { far: 140 * far });
+}
+
 // ---------- a lo lejos: el Puente Colgante (Portugalete–Getxo), fuera del mapa. Se dibuja sin niebla y, si queda más allá de lo que
 // alcanza la cámara, se acerca y se encoge en la misma proporción (se ve igual, pero entra en el campo de visión).
 const FARM = []; const FV = new THREE.Vector3();
@@ -214,6 +265,7 @@ function transit(M, root, q) {
   const mk = (txt, col) => { const v = new Vox(); v.box(0, 0, 0, .3, 3.6, .3, 0x3a3f46); v.box(0, 3.6, 0, 1.5, 1.5, .3, col); voxText(v, txt, 0, txt.length > 1 ? 4.12 : 3.86, .16, txt.length > 1 ? .055 : .14, .04, 0xffffff, { center: true }); v.at(0, 0, 0, Math.PI); voxText(v, txt, 0, txt.length > 1 ? 4.12 : 3.86, .16, txt.length > 1 ? .055 : .14, .04, 0xffffff, { center: true }); v.at(); return v.geometry(); };
   instChunks(root, mk('M', 0xd0322e), mat('lit'), met, { far: 500, shadow: q > 1 }); instChunks(root, mk('TREN', 0x6b2a8a), mat('lit'), trn, { far: 500, shadow: q > 1 }); ST.transit.forEach(o => addProp(o.x, o.z, .3, 'deco'));
 }
+export function busAt(x, z) { let best = null, bd = 3.4; for (const t of ST.stops) { const d = Math.hypot(t.x - x, t.z - z); if (d < bd) { bd = d; best = t; } } return best; }
 export function transitAt(x, z) { let best = null, bd = 3.2; for (const t of ST.transit) { const d = Math.hypot(t.x - x, t.z - z); if (d < bd) { bd = d; best = t; } } return best; }
 
 // ---------- hitos: el Horno Alto y las grúas

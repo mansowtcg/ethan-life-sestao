@@ -4,7 +4,7 @@ import { G, dampAng, angDiff } from './state.js';
 import { I, initInput, poll } from './input.js';
 import { roadNear, W, extend, buildWorld, collide, inWaterPoly, wallBetween, roadW, knockProp, clampWorld, tickWorld, updateLods, tubeAt } from './world.js';
 import { initSky, updateSky, tickSky, setFogBase, SKY } from './sky.js';
-import { buildStreet, tickStreet, poiAt, transitAt, ST, CAT } from './street.js';
+import { buildStreet, tickStreet, poiAt, transitAt, busAt, ST, CAT } from './street.js';
 import { initTrains, updateTrains, trainHit, TRN } from './trains.js';
 import { mat } from './vox.js';
 import { GR, buildGraph, nearestEdge, nearestNode, route, routeTo, laneOffset } from './graph.js';
@@ -12,7 +12,7 @@ import { P, initPlayer, updateFoot, onBridge } from './player.js';
 import { Car, TR, PK, updateTraffic, buildParked } from './car.js';
 import { SP, placeSpots, updateSpots, spotAt, nearSpot } from './spots.js';
 import { initHud, updateHud, toast, banner, setPrompt, hudKey, openMap, fade } from './hud.js';
-import { newGame, loadGame, saveGame, tickLife, tickRadio, enterSpot, enterPoi, enterTransit, openPhone, money } from './life.js';
+import { newGame, loadGame, saveGame, tickLife, tickRadio, enterSpot, enterPoi, enterTransit, enterBus, openPhone, money } from './life.js';
 import { initPeds, updatePeds, PED } from './peds.js';
 import { updateMission } from './missions.js';
 import { tickDay, onLeaveCar, morning, resetDay, parkDbg, bigPark, carOK, offers } from './day.js';
@@ -117,7 +117,7 @@ G.slow = () => { if ((G.speed || 1) > 1) G.setSpeed(1); };
 const carDist = () => Math.hypot(car.x - P.x, car.z - P.z);
 function action() {
   const s = spotAt(G.px, G.pz, G.mode === 'car'); if (s) { if (G.mode === 'car' && Math.abs(car.vf) > 3) { toast('Para el coche primero.', '🛑'); return; } car.vx = car.vz = 0; enterSpot(s); return; }
-  if (G.mode === 'foot') { const p = poiAt(P.x, P.z); if (p) { enterPoi(p); return; } const tr = transitAt(P.x, P.z); if (tr) { enterTransit(tr); return; } if (carDist() < 3.8) enterCar(); }
+  if (G.mode === 'foot') { const p = poiAt(P.x, P.z); if (p) { enterPoi(p); return; } const tr = transitAt(P.x, P.z); if (tr) { enterTransit(tr); return; } const bs = busAt(P.x, P.z); if (bs && carDist() >= 3.8) { enterBus(bs); return; } if (carDist() < 3.8) enterCar(); }
 }
 function enterCar(force) { if (G.mode === 'car' || (!force && carDist() > 3.8)) return; G.mode = 'car'; P.ethan.root.visible = false; sfx('door'); G.cam.manual = 0; }
 function leaveCar(force) {
@@ -229,8 +229,8 @@ function tick(dt) { // un paso de juego, sin dibujar
     obs.length = 0; if (G.mode === 'foot') obs.push(P.x, P.z, .5, P.y); obs.push(car.x, car.z, 1.5, car.y); updateTrains(dt, G.px, G.pz, obs); updateTraffic(dt, scene, G.px, G.pz, obs, t);
     { const said = updatePeds(dt, G.px, G.pz, G.mode === 'car' ? car : null, G.mode === 'foot' ? P : null); if (said) { toast(said, '🚶'); sfx('horn'); } }
     tickLife(dt); tickRadio(dt); updateMission(dt); tickDay(dt); updateGps(dt); tickExplore(dt); sounds(dt);
-    const s = spotAt(G.px, G.pz, G.mode === 'car'), foot = G.mode === 'foot', p = !s && foot ? poiAt(P.x, P.z) : null, tr = !s && !p && foot ? transitAt(P.x, P.z) : null;
-    if (s) setPrompt('E', s.icon + ' ' + s.n); else if (p) setPrompt('E', (CAT[p.c] || CAT.shop)[2] + ' ' + p.n); else if (tr) setPrompt('E', (tr.k === 'metro' ? '🚇 Metro · ' : '🚆 Tren · ') + tr.n); else if (foot && carDist() < 3.8) setPrompt('F', '🚗 Subir al coche'); else setPrompt();
+    const s = spotAt(G.px, G.pz, G.mode === 'car'), foot = G.mode === 'foot', p = !s && foot ? poiAt(P.x, P.z) : null, tr = !s && !p && foot ? transitAt(P.x, P.z) : null, bs = !s && !p && !tr && foot && carDist() >= 3.8 ? busAt(P.x, P.z) : null;
+    if (s) setPrompt('E', s.icon + ' ' + s.n); else if (p) setPrompt('E', (CAT[p.c] || CAT.shop)[2] + ' ' + p.n); else if (tr) setPrompt('E', (tr.k === 'metro' ? '🚇 Metro · ' : '🚆 Tren · ') + tr.n); else if (bs) setPrompt('E', '🚌 Bizkaibus · ' + bs.n); else if (foot && carDist() < 3.8) setPrompt('F', '🚗 Subir al coche'); else setPrompt();
   } else { if (G.mgTick) G.mgTick(dt); if (!G.dr && G.mode === 'foot') { P.y = standY(P.x, P.z, P.y + .7); G.py = FXB.y = P.y; } P.ethan.root.position.set(P.x, P.y, P.z); P.ethan.root.rotation.y = P.yaw; P.ethan.update(dt); setPrompt(); }
   engine(G.mode === 'car' && !G.title && !G.busy, car.vf, I.my); ambience({ on: !G.title, day: 1 - G.night, rain: SKY.rain, train: TRN.near, trainV: TRN.v, inCar: G.mode === 'car' });
   updateSpots(dt, t, G.px, G.pz); updateCamera(dt); if ((skyT -= dt) < 0) { updateSky(.4 + skyT); skyT = .4; lights(); const quiet = G.night > .7 ? .4 : SKY.rain > .4 ? .7 : 1; TR.max = TR.cap ? Math.max(2, Math.round(TR.cap * quiet)) : 0; PED.max = PED.cap ? Math.max(1, Math.round(PED.cap * quiet * (SKY.rain > .4 ? .6 : 1))) : 0; /* de noche y con lluvia hay menos gente */ } tickSky(dt); G.fx.update(dt); updateHud(dt);

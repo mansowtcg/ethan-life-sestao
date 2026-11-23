@@ -17,13 +17,14 @@ const DEF = {
   bar: { n: 'Bar Ekintza', icon: '🍺', col: 0xff5ca0, f: [.56, .44] },
   super: { n: 'Súper', icon: '🛒', col: 0x3ce6d2, f: [.63, .56] },
   lourdes: { n: 'Casa de Lourdes', icon: '🍳', col: 0xc88aff, f: [.36, .40] },
+  lonja: { n: 'Lonja de la cuadrilla', icon: '🛋️', col: 0x9a6ad0 },
   taller: { n: 'Taller', icon: '🔧', col: 0xc8dc4a },
   gas: { n: 'Gasolinera', icon: '⛽', col: 0xff8a3c },
   itv: { n: 'ITV', icon: '📋', col: 0x9aa0a8 },
   dealer: { n: 'Autos Sádaba', icon: '🚗', col: 0xd0322e }
 };
 // cada sitio va fijo en su portal (inventado) para este mapa: [edificio, centro de la fachada]. Si el mapa cambia, se busca otro por geometría
-const PIN = { home: [425, -108.45, 24.05], kebab: [95, 61.9, 145.75], bar: [361, 203.25, -78.15], super: [542, 348.95, 107.7], lourdes: [79, -388.85, -144.7] };
+const PIN = { home: [425, -108.45, 24.05], kebab: [95, 61.9, 145.75], bar: [361, 203.25, -78.15], super: [542, 348.95, 107.7], lourdes: [79, -388.85, -144.7], lonja: [204, -156.6, 300.9] };
 // fachadas que dan a una calle: candidatas para portales y locales
 function findFacades(M) {
   const out = [], bb = M.bbox;
@@ -46,9 +47,9 @@ export function placeSpots(scene, M) {
   const far = (c, ...others) => others.some(o => o && d2(c, o.mx, o.mz) < 170) ? 1e9 : 0;
   const t = k => at(DEF[k].f), home = pick(C, used, c => d2(c, ...t('home')), 'home');
   const noT = c => c.terr ? 0 : 1e6 /* el kebab y el bar sacan mesas a la acera: solo donde caben */, kebab = home && pick(C, used, c => Math.abs(d2(c, home.mx, home.mz) - 210) + (c.road === home.road ? 400 : 0) + noT(c), 'kebab');
-  const bar = pick(C, used, c => d2(c, ...t('bar')) + far(c, home, kebab) + noT(c), 'bar'), sup = pick(C, used, c => d2(c, ...t('super')) + far(c, home, kebab, bar), 'super'), lou = pick(C, used, c => d2(c, ...t('lourdes')) + far(c, home, kebab, bar, sup), 'lourdes');
+  const bar = pick(C, used, c => d2(c, ...t('bar')) + far(c, home, kebab) + noT(c), 'bar'), sup = pick(C, used, c => d2(c, ...t('super')) + far(c, home, kebab, bar), 'super'), lou = pick(C, used, c => d2(c, ...t('lourdes')) + far(c, home, kebab, bar, sup), 'lourdes'), lon = home && pick(C, used, c => Math.abs(d2(c, home.mx, home.mz) - 280) + far(c, home, kebab, bar, sup, lou) + (c.road === home.road ? 400 : 0), 'lonja');
   const add = (id, x, z, yaw, extra) => { const s = Object.assign({ id, x, z, yaw }, DEF[id], extra || {}); SP.list.push(s); SP.by[id] = s; return s; };
-  [['home', home], ['kebab', kebab], ['bar', bar], ['super', sup], ['lourdes', lou]].forEach(q => { const c = q[1]; if (!c) return; const s = add(q[0], c.mx + c.nx * 2.3, c.mz + c.nz * 2.3, Math.atan2(c.nx, c.nz), { wx: c.mx, wz: c.mz, road: c.road, far: c.far }); decorate(scene, s); });
+  [['home', home], ['kebab', kebab], ['bar', bar], ['super', sup], ['lourdes', lou], ['lonja', lon]].forEach(q => { const c = q[1]; if (!c) return; const s = add(q[0], c.mx + c.nx * 2.3, c.mz + c.nz * 2.3, Math.atan2(c.nx, c.nz), { wx: c.mx, wz: c.mz, road: c.road, far: c.far }); decorate(scene, s); });
   const A = W.anchors; if (A.taller) { ['taller', 'gas', 'itv', 'dealer'].forEach(id => { const a = A[id]; decorate(scene, add(id, a.x, a.z, a.yaw, { wx: a.x - Math.sin(a.yaw) * a.back, wz: a.z - Math.cos(a.yaw) * a.back, drive: id !== 'dealer' })); }); }
   SP.list.forEach(s => marker(scene, s));
 }
@@ -62,6 +63,10 @@ function person(scene, s, kind, lx, lz, yaw, anim, opts) {
 function decorate(scene, s) {
   const v = new Vox(), g = new Vox(), id = s.id, r = rng(id.length * 31 + 7); let props = [];
   if (id === 'home' || id === 'lourdes') { v.box(0, 0, .1, 1.5, 2.5, .2, 0x5a4634); v.box(0, .1, .16, 1.1, 2.1, .1, id === 'home' ? 0x2a5bb8 : 0x8a4a8a); v.box(.38, 1.1, .23, .08, .08, .06, 0xe0b23a); v.box(0, 2.5, .5, 2.2, .12, 1.0, 0x6a6e74); v.box(1.25, 1.1, .18, .4, .5, .14, 0xd8d4c8); sign(v, id === 'home' ? 'CASA' : 'LOURDES', 2.75, 0xf2efe6, 0x26303c, .07); }
+  else if (id === 'lonja') { v.bx(-1.5, 0, .02, 1.5, 2.7, .12, 0x3a3f46); for (let y = 1.05; y < 2.6; y += .18) v.bx(-1.48, y, .12, 1.48, y + .1, .17, 0x8d9399); v.bx(-1.48, 0, .05, 1.48, 1.05, .08, 0x14161a); v.bx(-1.55, .95, .1, 1.55, 1.07, .22, 0x6a6e74);      // persiana medio subida y dentro, a oscuras
+    sign(v, 'LONJA', 3.0, 0xf2efe6, 0x3a2a5a, .09); v.box(-.9, 1.6, .2, .5, .5, .03, 0xff5ca0); v.box(.8, 1.9, .2, .7, .35, .03, 0x3ce6d2);      // pegatinas en la persiana
+    [[-2.3, 1.1], [2.2, 1.2]].forEach(c => { v.box(c[0], 0, c[1], .46, .42, .46, 0xf2efe6); v.box(c[0], .42, c[1] - .2, .46, .45, .06, 0xf2efe6); }); v.box(2.9, 0, .7, .5, .32, .36, 0xe0b23a); props = [[-2.3, 1.1, .4], [2.2, 1.2, .4], [2.9, .7, .35]];
+    person(scene, s, 'curro', -2.3, 1.6, Math.PI * .9, 'idle', { look: { tee: 0x2a2a2a, tee2: 0x1a1a1a, sleeve: 0x2a2a2a, shorts: 0x34425e, shorts2: 0x46587a, hair: 0x2a1e14, hair2: 0x4a3a2a, skin: 0xe0b08a, skin2: 0xc8946e }, hair: 'short', whiteTeeth: true }); }
   else if (id === 'kebab') { v.box(0, 0, .1, 1.3, 2.3, .18, 0x26262c); v.box(-2.4, .9, .1, 2.6, 1.4, .14, 0x2c3a4a); const w = sign(v, 'KEBAB DE ALI', 2.9, 0xffe26a, 0xc4302a, .09); v.bx(-w / 2, 2.55, .1, w / 2, 2.7, 1.5, 0xc4302a); v.bx(-w / 2, 2.5, 1.3, w / 2, 2.6, 1.5, 0xffe26a); v.cyl(-2.4, 1.0, .5, .22, 1.0, 0x9a5a34); v.cyl(-2.4, .9, .5, .3, .1, 0x777c84);
     table(v, 3.2, 1.6, 0xd8d4c8); table(v, 5.4, 1.6, 0xd8d4c8); props = [[3.2, 1.6, .9], [5.4, 1.6, .9]];
     person(scene, s, 'ali', -1.3, 1.0, 0, 'idle', { look: { tee: 0xf2efe6, tee2: 0xd9d6cc, sleeve: 0xf2efe6, shorts: 0x26262c, shorts2: 0x3a3a44, hair: 0x1c1a18, hair2: 0x3a3632, skin: 0xb9855c, skin2: 0x9c6c46 }, hair: 'short', whiteTeeth: true }); }
