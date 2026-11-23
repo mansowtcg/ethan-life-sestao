@@ -145,7 +145,9 @@ export function updateHud(dt) {
   const inCar = G.mode === 'car'; $('speed').hidden = !inCar; if (inCar) { const kmh = Math.round(Math.abs(G.car.vf) * 3.6); $('speed').firstElementChild.textContent = kmh;
     // la velocidad máxima de la calle: la del mapa si la trae; si no, la general en ciudad (30 con un carril por sentido, 50 en las avenidas de dos, 20 en las de prioridad peatonal)
     if ((limT -= 1) <= 0) { limT = 10; const rn = roadNear(G.car.x, G.car.z, 6, true), r = rn.r && rn.d < 1.5 ? rn.r : null; lim = limitOf(r); const el = $('lim'); if (el) { el.hidden = !lim; if (lim) el.textContent = lim; } }
-    $('speed').classList.toggle('over', !!lim && kmh > lim + 5); }
+    $('speed').classList.toggle('over', !!lim && kmh > lim + 5);
+    // la cuesta en la que estás (si se nota): con flecha hacia donde sube según miras
+    { const gr = G.car.grade || 0, pc = Math.round(Math.abs(gr) * 100), el = $('slope'); if (el) { if (pc >= 5) { el.hidden = false; const tx = (gr > 0 ? '↗ ' : '↘ ') + pc + ' %'; if (el.textContent !== tx) el.textContent = tx; } else if (!el.hidden) el.hidden = true; } } }
   // carteles sobre los sitios cercanos
   const cam = G.camera, w = innerWidth, h = innerHeight;
   SP.list.forEach(sp => { let el = labels.get(sp.id); const show = sp.dist < 70 && sp.dist > 4.5 && !G.busy;

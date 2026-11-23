@@ -141,6 +141,10 @@ export function initTerrain(M, ways, ext, aprons) {
       let Lt = 0; chain.forEach(c => { Lt += c[0].len; }); const w0 = o.w, ch = { A: start, B: end, Lt, obs: [], slaves: [], mb: w0.rail !== undefined ? .03 : w0.car ? .12 : .2, rail: w0.rail !== undefined }; chains.push(ch);
       let acc = 0; chain.forEach((c, ci) => { const q = c[0]; q.ch = ch; q.s0 = (c[1] ? acc + q.len : acc) / Lt; q.s1 = (c[1] ? acc : acc + q.len) / Lt; acc += q.len; if (ci < chain.length - 1) { const id = q.v[c[1] ? 0 : 1]; if (cnt[id]) ch.slaves.push([id, acc / Lt]); } });
       if (start !== end) segs.push([start, end, Lt, o.w.ms]); }); }
+  // un puente que nace en mitad de otro (el ramal que sale de una rotonda elevada): su extremo va atado al tablero del otro, a su altura
+  { let nT = 0; chains.forEach(c => [c.A, c.B].forEach(id => { if (cnt[id] || use.get(id) !== 1) return; const x = NX[id], z = NZ[id];
+      for (const q of br) { if (q.ch === c || q.v.indexOf(id) >= 0) continue; const p = q.w.p; let acc = 0, hit = -1; for (let k = 0; k + 3 < p.length; k += 2) { const ax = p[k], az = p[k + 1], ex = p[k + 2] - ax, ez = p[k + 3] - az, l = Math.hypot(ex, ez) || 1, t = cl(((x - ax) * ex + (z - az) * ez) / (l * l), 0, 1); if (Math.hypot(x - ax - ex * t, z - az - ez * t) < .8) { hit = acc + t * l; break; } acc += l; }
+        if (hit < 1 || hit > q.len - 1) continue; const f = hit / q.len; q.ch.slaves.push([id, q.s0 + (q.s1 - q.s0) * f]); nT++; (T.ties || (T.ties = [])).push([Math.round(x), Math.round(z), Math.round(c.Lt)]); break; } })); T.nTie = nT; }
   // gálibo: lo que cruza por debajo (calle, vía o camino) es un obstáculo que el tablero salva por encima
   const clrs = [], xp = [], X = (ax, az, bx, bz, cx, cz, dx, dz) => { const rx = bx - ax, rz = bz - az, sx = dx - cx, sz = dz - cz, den = rx * sz - rz * sx; if (Math.abs(den) < 1e-9) return -1; const t = ((cx - ax) * sz - (cz - az) * sx) / den, v = ((cx - ax) * rz - (cz - az) * rx) / den; return t >= 0 && t <= 1 && v >= 0 && v <= 1 ? t : -1; };
   br.forEach(o => { const p = o.w.p, ch = o.ch, seen = new Set(); let acc = 0;
