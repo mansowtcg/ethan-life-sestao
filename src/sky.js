@@ -12,7 +12,7 @@ const ca = new THREE.Color(), cb = new THREE.Color(), top = new THREE.Color(), h
 
 const VERT = 'varying vec3 vDir; void main(){ vDir = position; vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position = p.xyww; }';
 const FRAG = `
-uniform vec3 uTop, uHor, uSun, uSunCol, uHill; uniform float uNight, uCover, uTime, uRain;
+uniform vec3 uTop, uHor, uSun, uSunCol, uHill, uPos; uniform float uNight, uCover, uTime, uRain;
 varying vec3 vDir;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y); }
@@ -25,7 +25,13 @@ void main(){
   if (uNight > 0.05 && y > 0.0) { vec2 g = d.xz / (y + 0.35) * 170.0; float h = hash(floor(g)); float st = step(0.986, h) * smoothstep(0.22, 0.02, length(fract(g) - 0.5)); c += vec3(st) * uNight * (1.0 - uCover) * (0.6 + 0.4 * sin(uTime * 1.7 + h * 60.0)) * (0.5 + fract(h * 37.0)); }
   if (y > -0.02) { vec2 q = d.xz / (y + 0.14) * 1.5 + vec2(uTime * 0.007, uTime * 0.003); float n = fbm(q); float th = 1.0 - uCover * 0.92; float dens = smoothstep(th - 0.3, th + 0.1, n + 0.22); vec3 cc = mix(vec3(1.0), uHor, 0.3) * (1.0 - uRain * 0.42) * (1.0 - uNight * 0.86) * (1.0 - dens * uCover * 0.25); c = mix(c, cc, dens * smoothstep(-0.02, 0.1, y) * 0.94); }
   float a = atan(d.x, d.z); float hl = 0.034 + 0.02 * sin(a * 3.0 + 1.3) + 0.013 * sin(a * 7.0 + 0.4) + 0.006 * sin(a * 17.0 + 2.0);
+  // el Serantes (451 m), la pirámide de Santurtzi al noroeste: su silueta depende de desde dónde se mire
+  vec2 sp = vec2(-4750.0, -2800.0) - uPos.xz; float sdist = length(sp), da = mod(a - atan(sp.x, sp.y) + 3.14159, 6.28318) - 3.14159, sw = 1350.0 / sdist, hs = (451.0 - uPos.y) / sdist;
+  float hp = hs * pow(max(0.0, 1.0 - abs(da) / sw), 1.15) + 0.004 * smoothstep(sw * 0.06, 0.0, abs(da)); hl = max(hl * (0.75 + 0.25 * smoothstep(0.2, 1.2, abs(da))), hp);
   c = mix(c, mix(uHill, uHor, 0.5 + uRain * 0.3), smoothstep(hl + 0.003, hl - 0.003, y));
+  // «si el Serantes tiene txapela, llueve»: nube agarrada a la cima cuando el tiempo se pone feo
+  float tx = smoothstep(0.55, 0.85, uCover + uRain * 0.4) * smoothstep(sw * 0.55, sw * 0.1, abs(da)) * smoothstep(hs * 0.62, hs * 0.85, y) * smoothstep(hs * 1.22, hs * 1.02, y);
+  c = mix(c, mix(vec3(0.93), uHor, 0.35) * (1.0 - uNight * 0.85), tx * 0.92);
   c = mix(c, uHor, smoothstep(0.004, -0.012, y));
   gl_FragColor = vec4(c, 1.0);
   #include <tonemapping_fragment>
@@ -34,7 +40,7 @@ void main(){
 
 export function initSky(sc0, cam, sunL, hemiL, q) {
   scene = sc0; camera = cam; sun = sunL; hemi = hemiL;
-  U = { uTop: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uSun: { value: new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color() }, uHill: { value: new THREE.Color() }, uNight: { value: 0 }, uCover: { value: .3 }, uTime: { value: 0 }, uRain: { value: 0 } };
+  U = { uTop: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uSun: { value: new THREE.Vector3(0, 1, 0) }, uSunCol: { value: new THREE.Color() }, uHill: { value: new THREE.Color() }, uNight: { value: 0 }, uCover: { value: .3 }, uTime: { value: 0 }, uRain: { value: 0 }, uPos: { value: new THREE.Vector3() } };
   const m = new THREE.ShaderMaterial({ uniforms: U, vertexShader: VERT, fragmentShader: FRAG, defines: { OCT: q === 1 ? 3 : 4 }, side: THREE.BackSide, depthWrite: false, fog: false });
   const dome = SKY.dome = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 14), m); dome.frustumCulled = false; dome.renderOrder = -10; dome.scale.setScalar(300); scene.add(dome);
   // lluvia: rayitas que caen alrededor de la cámara
@@ -53,7 +59,7 @@ export function updateSky(dt, force) {
   top.setHex(a[1]).lerp(cb.setHex(b[1]), f); hor.setHex(a[2]).lerp(cb.setHex(b[2]), f); sc.setHex(a[3]).lerp(cb.setHex(b[3]), f);
   // nublado: el cielo se agrisa y el sol aprieta menos
   const grey = ca.setHex(0x9aa3ab).multiplyScalar(1 - night * .88); top.lerp(grey, cov * .55 + rn * .25); hor.lerp(grey, cov * .35 + rn * .35);
-  U.uTop.value.copy(top); U.uHor.value.copy(hor); U.uSunCol.value.copy(sc).multiplyScalar(night > .9 ? .8 : 1.2); U.uNight.value = night; U.uCover.value = cov; U.uRain.value = rn; U.uHill.value.setHex(0x3f5f52).multiplyScalar(1 - night * .9);
+  U.uPos.value.copy(camera.position); U.uTop.value.copy(top); U.uHor.value.copy(hor); U.uSunCol.value.copy(sc).multiplyScalar(night > .9 ? .8 : 1.2); U.uNight.value = night; U.uCover.value = cov; U.uRain.value = rn; U.uHill.value.setHex(0x3f5f52).multiplyScalar(1 - night * .9);
   scene.fog.color.copy(hor); if (scene.background && scene.background.isColor) scene.background.copy(hor); scene.fog.near = fogBase[0] * (1 - rn * .45); scene.fog.far = fogBase[1] * (1 - rn * .38 - cov * .08);
   sun.color.copy(sc); sun.intensity = L(4) * (1 - cov * .5 - rn * .2); hemi.intensity = L(5) * (1 + cov * .12 - rn * .08); hemi.color.copy(hor).lerp(cb.setHex(0xffffff), .35); G.night = night; setNight(night);
   const day = clamp((hF - 6) / 15.5, 0, 1), az = night > .9 ? 2.2 : .5 + day * 2.1, el = night > .9 ? .95 : .3 + .8 * Math.sin(Math.PI * day), ce = Math.cos(el), tx = G.px || 0, tz = G.pz || 0;

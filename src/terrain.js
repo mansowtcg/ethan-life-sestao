@@ -74,6 +74,15 @@ export function standY(x, z, y) {
 
 // ---------- construcción
 // ways: [{ p: [x,z,...], hw: medio ancho con acera, ms: pendiente máxima, bridge, flat: se nivela el terreno, sm: se suaviza el perfil }]
+// el agua que toca el borde del mapa se alarga más allá: la ría hasta el horizonte; un río estrecho, solo un trecho (si no, sale un canal recto cruzando el monte)
+export function waterExt(M, p0) { const bb = M.bbox, mg = M.margin || 0; if (!mg) return { p: p0, far: false }; const lim = [bb[0] - mg - 15, bb[1] - mg - 15, bb[2] + mg + 15, bb[3] + mg + 15], p = p0.slice(), n = p.length / 2;
+  const at = k => Math.abs(p[k * 2] - lim[0]) < .4 || Math.abs(p[k * 2] - lim[2]) < .4 || Math.abs(p[k * 2 + 1] - lim[1]) < .4 || Math.abs(p[k * 2 + 1] - lim[3]) < .4, on = []; for (let k = 0; k < n; k++) on.push(at(k));
+  if (on.indexOf(true) < 0) return { p, far: false }; const st = on.indexOf(false); if (st < 0) return { p, far: false };
+  // tramos seguidos de vértices sobre el borde: cada salida del agua se alarga según lo ancha que sea
+  for (let q = 0; q < n; q++) { const k0 = (st + q) % n; if (!on[k0] || on[(k0 - 1 + n) % n]) continue; const run = []; for (let k = k0; on[k] && run.length < n; k = (k + 1) % n) run.push(k);
+    let span = 0; for (const a of run) for (const b of run) span = Math.max(span, Math.hypot(p0[a * 2] - p0[b * 2], p0[a * 2 + 1] - p0[b * 2 + 1])); const FAR = span > 150 ? 2600 : 320;
+    for (const k of run) { const x = p0[k * 2], z = p0[k * 2 + 1]; if (Math.abs(x - lim[0]) < .4) p[k * 2] -= FAR; else if (Math.abs(x - lim[2]) < .4) p[k * 2] += FAR; if (Math.abs(z - lim[1]) < .4) p[k * 2 + 1] -= FAR; else if (Math.abs(z - lim[3]) < .4) p[k * 2 + 1] += FAR; } }
+  return { p, far: true }; }
 export function initTerrain(M, ways, ext, aprons) {
   const t0 = Date.now(), dem = M.dem; if (!dem) { T.on = false; return; }
   F = dem.fine; Wd = dem.wide;
@@ -257,12 +266,20 @@ export function initTerrain(M, ways, ext, aprons) {
   (aprons || []).forEach(p => { const n = p.length / 2; for (let k = 0; k < n; k++) { const j = (k + 1) % n, ax = p[k * 2], az = p[k * 2 + 1], bx = p[j * 2], bz = p[j * 2 + 1], l = Math.hypot(bx - ax, bz - az), m = Math.max(1, Math.ceil(l / 2)); for (let q = 0; q <= m; q++) { const x = ax + (bx - ax) * q / m, z = az + (bz - az) * q / m; stampCov(x, z, 3.3); stampTr(x, z, 10.5); } } });
 
   // --- agua: cada lámina a su nivel (el más bajo de su orilla); el fondo de la malla es la propia lámina
-  T.level = (M.water || []).map(p => { const hs = []; for (let k = 0; k < p.length; k += 2) if (inRaster(p[k], p[k + 1])) hs.push(base0(p[k], p[k + 1])); hs.sort((a, b) => a - b); const lv = hs.length ? Math.max(0, hs[Math.floor(hs.length * .15)]) : 0;
+  const WX = [];
+  // el agua que toca el borde del mapa sigue más allá (como la lámina que se alarga hasta el horizonte): su lecho también, o asoma el relieve del margen como una rampa de agua
+  const extW = p0 => waterExt(M, p0);
+  T.level = (M.water || []).map(p0 => { const hs = []; for (let k = 0; k < p0.length; k += 2) if (inRaster(p0[k], p0[k + 1])) hs.push(base0(p0[k], p0[k + 1])); hs.sort((a, b) => a - b); const lv = hs.length ? Math.max(0, hs[Math.floor(hs.length * .15)]) : 0, p = extW(p0).p;
     let a = 1e9, b = 1e9, c = -1e9, e = -1e9; for (let k = 0; k < p.length; k += 2) { a = Math.min(a, p[k]); c = Math.max(c, p[k]); b = Math.min(b, p[k + 1]); e = Math.max(e, p[k + 1]); }
     const i0 = Math.max(0, Math.ceil((a - T.x0) / d)), i1 = Math.min(nx - 1, Math.floor((c - T.x0) / d)), j0 = Math.max(0, Math.ceil((b - T.z0) / d)), j1 = Math.min(nz - 1, Math.floor((e - T.z0) / d));
     for (let j = j0; j <= j1; j++) { const z = T.z0 + j * d, xs = []; for (let k = 0, n = p.length / 2, q = n - 1; k < n; q = k++) { const zi = p[k * 2 + 1], zj = p[q * 2 + 1]; if ((zi > z) !== (zj > z)) xs.push((p[q * 2] - p[k * 2]) * (z - zi) / (zj - zi) + p[k * 2]); } xs.sort((u, v) => u - v);
       for (let s = 0; s + 1 < xs.length; s += 2) for (let i = Math.max(i0, Math.ceil((xs[s] - T.x0) / d)); i <= i1 && T.x0 + i * d <= xs[s + 1]; i++) { const n = j * nx + i; if (dmin[n] > 2) { hG[n] = lv - 1.4; tr[n] = 0; } } }      /* el lecho, por debajo de la lámina (la lámina se dibuja plana aparte) */
-    return lv; });
+    WX.push([p, lv]); return lv; });
+  // fuera de la malla fina (rejilla gruesa de 80 m) el lecho también se hunde, y la franja de enlace se rehace para que no queden grietas
+  if (WX.length) { const S = T.S, old = Float32Array.from(S.h), pip = (p, x, z) => { let c = false; for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) if ((p[i + 1] > z) !== (p[j + 1] > z) && x < (p[j] - p[i]) * (z - p[i + 1]) / (p[j + 1] - p[i + 1]) + p[i]) c = !c; return c; };
+    let ch = 0; for (let j = 0; j < S.nz; j++) for (let i = 0; i < S.nx; i++) { const x = S.x0 + i * S.d, z = S.z0 + j * S.d; if (x > T.x0 + 60 && x < T.x1 - 60 && z > T.z0 + 60 && z < T.z1 - 60) continue; for (const w of WX) if (pip(w[0], x, z)) { const q = j * S.nx + i, v = Math.min(S.h[q], w[1] - 1.4); if (v < S.h[q]) { S.h[q] = v; ch++; } break; } }
+    if (ch) for (let j = 0, k = 0; j < nz; j++) for (let i = 0; i < nx; i++, k++) { const x = T.x0 + i * d, z = T.z0 + j * d, e = Math.min(x - T.x0, T.x1 - x, z - T.z0, z - T.z0 < 0 ? 0 : T.z1 - z); if (e >= 60) continue; const sn = pl(S, S.h, x, z), so = pl(S, old, x, z); if (e < 2.5) hG[k] = sn; else if (Math.abs(sn - so) > .01) hG[k] = Math.min(hG[k], hG[k] + (sn - so) * (1 - smooth(e / 60))); }
+    T.wetS = ch; }
   // la malla bajo el firme va algo más baja que él (zanja) para que nunca asome; donde el suelo hace un pliegue brusco, más honda
   const hM = T.hM = new Float32Array(N); for (let j = 0, n = 0; j < nz; j++) for (let i = 0; i < nx; i++, n++) { if (!tr[n]) { hM[n] = hG[n]; continue; } let c = 0; if (dmin[n] < 1 && i > 0 && j > 0 && i < nx - 1 && j < nz - 1) { const h = hG[n]; c = Math.max(Math.abs((hG[n - 1] + hG[n + 1]) / 2 - h), Math.abs((hG[n - nx] + hG[n + nx]) / 2 - h), Math.abs((hG[n - nx - 1] + hG[n + nx + 1]) / 2 - h), Math.abs((hG[n - nx + 1] + hG[n + nx - 1]) / 2 - h)); } hM[n] = hG[n] - TRENCH - Math.min(1.5, c * 1.3); }
   { let big = 0; for (let n = 0; n < N; n++) if (hG[n] - hM[n] > .45) big++; T.deep = big; }

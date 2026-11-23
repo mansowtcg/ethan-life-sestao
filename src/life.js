@@ -53,6 +53,7 @@ export function enterSpot(s) {
       { t: 'Dormir', d: !(late || tired) ? 'Aún es pronto: antes de las 20:00, solo si estás reventado' : !carOK() && S.energy >= 12 ? 'Antes hay que aparcar el coche: en tu zona o en el parking grande' : !carOK() ? 'No puedes más. El coche se queda como está, y a ver qué pasa esta noche' : 'Hasta que suene el despertador. Guarda la partida', dis: !(late || tired) || (!carOK() && S.energy >= 12), f: () => goSleep() },
       { t: 'Pasar el rato en el sofá', d: 'Una hora de tele. Descansa un poco', tag: '1 h', f: () => { pass(60); feed(-3, 9); toast('Una hora de sofá.', '🛋️'); re(); } },
       { t: 'Lavarse los dientes', d: !S.tooth ? 'No tienes cepillo. En el súper los venden' : S.daily.teeth === 1 ? 'Hoy ya te los has lavado. Histórico' : 'Aliento fresco: ×1,5 a todo durante 24 h', tag: '10 min', dis: !S.tooth || S.daily.teeth === 1, f: () => { if (!S.tooth) { S.stats.nope++; toast(say(['Hoy no.', 'Mañana.', '¿Dentista? ¿Eso qué es?']), '🪥'); return; } S.daily.teeth = 1; pass(10); S.sarro = 0; addBuff('fresco', 'Aliento fresco', '🪥', 'all', 1.5, 24); S.buffs = S.buffs.filter(b => b.id !== 'sarro'); moment('diente'); sfx('ok'); re(); } },
+      { t: 'Cocinar algo', d: (S.fridge || 0) > 0 ? 'Pasta, huevos o lo que haya. Quedan ' + S.fridge + ' en la nevera' : 'La nevera está vacía: haz la compra en el súper', tag: '30 min', dis: !(S.fridge > 0), f: () => { S.fridge--; pass(30); feed(55, 4); toast(say(['Macarrones con tomate. Clásico.', 'Tortilla francesa con lo que había.', 'Arroz con huevo. Cena de campeones.', 'Lentejas de bote. No se lo digas a Lourdes.']), '🍳'); sfx('ok'); re(); } },
       { t: 'Abrir el armario', d: S.cos.length + ' de ' + COS.length + ' cosas conseguidas', f: () => wardrobe(s) },
       { t: 'Buzoneo', d: S.daily.buzon ? 'Hoy ya has repartido' : S.min < 540 || S.min > 1230 ? 'La de la imprenta da los folletos de 9:00 a 20:30' : 'Folletos de la frutería en cinco portales del barrio, a pie y a contrarreloj', tag: 'Curro', dis: !!G.mission || !!S.daily.buzon || S.min < 540 || S.min > 1230, f: () => { closeDialog(); G.startMission('buzon'); } },
       { t: 'La vecina del cuarto', d: S.daily.vecina ? 'Hoy ya le has hecho el recado' : 'Necesita que le bajes a la farmacia a por su receta', tag: 'Recado', dis: !!G.mission || !!S.daily.vecina || S.min < 540 || S.min > 1260, f: () => { closeDialog(); G.startMission('vecina'); } }] }); }
@@ -115,11 +116,13 @@ export function enterPoi(p) {
   if (p.c === 'bar' || p.c === 'cafe') o.push({ t: 'Café', d: 'Espabila un rato', tag: eur(1.5), f: buy(1.5, () => { feed(0, 9); pass(5); toast('Un café.', '☕'); }) }, { t: 'Pintxo', d: 'El que quede en la barra', tag: eur(2.5), f: buy(2.5, () => { feed(18, 0); pass(8); toast('Un pintxo.', '🍢'); }) }, { t: 'Refresco', d: 'Con hielo', tag: eur(2), f: buy(2, () => { feed(3, 6); pass(5); toast('Un refresco.', '🥤'); }) });
   if (p.c === 'bar' || p.c === 'cafe') barFun(p, o, buy, re);
   if (p.c === 'fronton' || p.c === 'campo') sportFun(p, o, re);
+  if (p.c === 'sport') o.push({ t: 'Sesión de gimnasio', d: S.daily.gym ? 'Por hoy ya has sudado' : S.energy < 25 ? 'Estás demasiado reventado' : S.min < 420 || S.min > 1290 ? 'Abre de 7:00 a 21:30' : 'Una hora de pesas y cinta. Cansa, pero luego descansas mejor', tag: eur(6), dis: !!S.daily.gym || S.energy < 25 || S.min < 420 || S.min > 1290, f: buy(6, () => { S.daily.gym = 1; pass(60); feed(-8, -12); addBuff('sport', 'En forma', '💪', 'regen', 1.2, 18); toast(say(['Piernas: hechas. Escaleras de Sestao: temidas.', 'Has hecho cinta. Mirando el móvil, pero cinta.', 'El monitor dice que «bien». Ethan se lo cree.']), '🏋️'); sfx('ok'); }) });
   if (p.c === 'lift' && p.to) o.push({ t: 'Coger el ascensor', d: 'Gratis, como los de verdad', f: () => { closeDialog(); G.busy = true; sfx('door'); fade(true); setTimeout(() => { P.x = p.to[0]; P.z = p.to[1]; G.px = P.x; G.pz = P.z; P.y = -1e3; fade(false); G.busy = false; toast('Ding. Otra altura de Sestao.', '🛗'); }, 700); } });
   else if (p.c === 'rest') o.push({ t: 'Menú del día', d: 'Primero, segundo y postre', tag: eur(13), f: buy(13, () => { feed(80, 6); pass(45); toast('Menú del día. Ethan sale rodando.', '🍽️'); }) }, { t: 'Plato combinado', d: 'Rápido y contundente', tag: eur(9), f: buy(9, () => { feed(55, 2); pass(25); toast('Plato combinado.', '🍽️'); }) });
   else if (p.c === 'fast') o.push({ t: 'Bocadillo', d: 'Para llevar', tag: eur(5), f: buy(5, () => { feed(45, 0); pass(10); toast('Un bocadillo.', '🥪'); }) }, { t: 'Ración de patatas', d: 'Con lo que haya de salsa', tag: eur(3), f: buy(3, () => { feed(22, 0); pass(6); toast('Patatas.', '🍟'); }) });
   else if (p.c === 'bakery') o.push({ t: 'Barra de pan', d: 'Recién hecha', tag: eur(1), f: buy(1, () => { feed(12, 0); toast('Una barra de pan.', '🥖'); }) }, { t: 'Palmera de chocolate', d: 'Azúcar para aguantar', tag: eur(2), f: buy(2, () => { feed(20, 5); toast('Una palmera de chocolate.', '🥐'); }) });
-  else if (p.c === 'super' || p.c === 'food') o.push({ t: 'Refresco', d: 'Sube la energía', tag: eur(2), f: buy(2, () => { feed(0, 14); toast('Un refresco.', '🥤'); }) }, { t: 'Bolsa de patatas', d: 'Para picar', tag: eur(2), f: buy(2, () => { feed(16, 0); toast('Patatas de bolsa.', '🥔'); }) }, { t: 'Bocata de lomo', d: 'El menú del currante', tag: eur(5), f: buy(5, () => { feed(42, 2); toast('Bocata de lomo.', '🥖'); }) });
+  if (p.c === 'super') o.push({ t: 'Hacer la compra', d: (S.fridge || 0) >= 5 ? 'La nevera ya está llena' : 'Para cinco comidas en casa (ahora: ' + (S.fridge || 0) + ')', tag: eur(16), dis: (S.fridge || 0) >= 5, f: buy(16, () => { S.fridge = 5; pass(20); toast('Compra hecha: la nevera, llena.', '🛒'); }) });
+  if (p.c === 'super' || p.c === 'food') o.push({ t: 'Refresco', d: 'Sube la energía', tag: eur(2), f: buy(2, () => { feed(0, 14); toast('Un refresco.', '🥤'); }) }, { t: 'Bolsa de patatas', d: 'Para picar', tag: eur(2), f: buy(2, () => { feed(16, 0); toast('Patatas de bolsa.', '🥔'); }) }, { t: 'Bocata de lomo', d: 'El menú del currante', tag: eur(5), f: buy(5, () => { feed(42, 2); toast('Bocata de lomo.', '🥖'); }) });
   if ((p.c === 'super' || p.c === 'food' || p.c === 'pharm') && !S.tooth) o.push({ t: 'Cepillo de dientes', d: 'Con él te puedes lavar los dientes. Y +1 € por hora en el taller', tag: eur(10), f: () => { if (S.money < 10) { toast('No te llega el dinero.', '💸'); sfx('bad'); return; } money(-10); closeDialog(); S.tooth = 1; banner('Cepillo de dientes', 'El primer paso de la vida de Ethan. Sigue precintado, pero es suyo.'); sfx('win'); } });
   if (p.c === 'pharm') o.push({ t: 'Vitaminas', d: 'Una al día', tag: eur(6), dis: !!S.daily.vit, f: buy(6, () => { S.daily.vit = 1; feed(0, 22); toast('Vitaminas. Ethan nota algo. O eso dice.', '💊'); }) });
   else if (p.c === 'lottery') o.push({ t: 'Rasca', d: 'A ver si hoy sí', tag: eur(2), f: buy(2, () => { const r = Math.random(); if (r < .004) { money(200, 'premio del rasca'); sfx('win'); } else if (r < .05) money(20, 'premio del rasca'); else if (r < .24) money(4, 'premio del rasca'); else toast('Nada. Otro día será.', '🍀'); }) });
@@ -155,7 +158,7 @@ export function enterTransit(t) {
   const S = G.S, metro = t.k === 'metro', cost = metro ? 1.7 : 1.95, seen = new Set([t.n]), opts = [];
   ST.transit.forEach(d => { if (d.k !== t.k || seen.has(d.n)) return; seen.add(d.n); const km = Math.hypot(d.x - t.x, d.z - t.z) / 1000;
     opts.push({ t: d.n, d: 'A ' + km.toFixed(1).replace('.', ',') + ' km', tag: eur(cost), f: () => { if (S.money < cost) { toast('No te llega para el billete.', '💸'); sfx('bad'); return; } money(-cost); closeDialog(); G.busy = true; fade(true); sfx('door');
-      setTimeout(() => { P.x = d.x + 1.4; P.z = d.z + 1.4; G.px = P.x; G.pz = P.z; pass(4 + km * 5); fade(false); G.busy = false; banner(d.n, (metro ? 'Metro' : 'Tren') + ' · ' + fmtTime(S), 2400); }, 900); } }); });
+      setTimeout(() => { P.x = d.ex !== undefined ? d.ex : d.x + 1.4; P.z = d.ez !== undefined ? d.ez : d.z + 1.4; G.px = P.x; G.pz = P.z; pass(4 + km * 5); fade(false); G.busy = false; banner(d.n, (metro ? 'Metro' : 'Tren') + ' · ' + fmtTime(S), 2400); }, 900); } }); });
   sfx('ui'); dialog({ icon: metro ? '🚇' : '🚆', title: (metro ? 'Metro · ' : 'Tren · ') + t.n, text: opts.length ? 'Elige a dónde vas. El coche se queda donde lo dejaste.' : 'No hay más estaciones dentro del mapa.', options: opts });
 }
 function wardrobe(s) {
@@ -217,21 +220,26 @@ const FAULTS = [
   ['Se enciende el testigo de la aceitera', 'Falta aceite', ['Falta agua del limpia', 'Cinturón mal puesto']],
   ['Las luces bajan cuando paras y el testigo de batería se enciende', 'Alternador', ['Pastillas de freno', 'Embrague']],
   ['Pega golpes secos en los baches', 'Amortiguadores', ['Bujías', 'Termostato']]];
-const KIND_TXT = { nut: '¡Aprieta la tuerca!', wheel: 'Cambio de rueda', oil: 'Cambio de aceite', diag: 'Diagnóstico' };
-// un rato de minijuego. En el taller se turnan cuatro: apretar tuercas (para la aguja en lo verde), cambiar una rueda (las cinco tuercas
-// en estrella, deprisa), cambiar el aceite (parar en la marca) y diagnosticar (qué le pasa al coche por lo que cuenta el cliente).
+const KIND_TXT = { nut: '¡Aprieta la tuerca!', wheel: 'Cambio de rueda', oil: 'Cambio de aceite', diag: 'Diagnóstico', bat: 'Arrancar con pinzas', paint: 'Pulir arañazos', quote: 'Presupuesto' };
+// las pinzas, en el orden de verdad: así no salta la chispa junto a la batería
+const BAT = ['Rojo al + de la batería muerta', 'Rojo al + de la batería buena', 'Negro al − de la batería buena', 'Negro a masa del coche averiado (chasis)'];
+// un rato de minijuego. En el taller se turnan seis: apretar tuercas (para la aguja en lo verde), cambiar una rueda (las cinco tuercas
+// en estrella, deprisa), cambiar el aceite (parar en la marca), diagnosticar (qué le pasa al coche por lo que cuenta el cliente),
+// arrancar con pinzas (las cuatro en su orden), pulir arañazos (tocar los que van saliendo en el capó antes de que se pierdan) y
+// hacer un presupuesto de cabeza (pieza más horas de mano de obra).
 // Al acabar llama a cb(calidad de 0 a 1). opts: { title, word, steps } (con title es otra cosa que no es el taller: solo la aguja)
 export function workBlock(hours, title, cb, opts) {
-  opts = opts || {}; closeDialog(); G.busy = true; const S = G.S, sp = SP.by.taller, rounds = opts.steps || Math.max(3, Math.min(9, Math.round(hours * 2))), work = !opts.title; let i = 0, score = 0, pos = 0, dir = 1, zc = .5, zw = .26, wait = 0, kind = 'nut', K = null;
+  opts = opts || {}; closeDialog(); G.busy = true; const S = G.S, sp = SP.by.taller, rounds = opts.plan ? opts.plan.length : opts.steps || Math.max(3, Math.min(9, Math.round(hours * 2))), work = !opts.title; let i = 0, score = 0, pos = 0, dir = 1, zc = .5, zw = .26, wait = 0, kind = 'nut', K = null;
   if (work) { if (G.mode === 'car') G.leaveCar(true); P.x = sp.workX; P.z = sp.workZ; P.yaw = sp.workYaw; P.anim = 'work'; P.ethan.play('work'); P.ethan.setTool(true); G.cam.yaw = sp.yaw - .55; G.cam.pitch = .2; G.cam.zoomK = .8; G.cam.manual = 1e9; G.cam.lift = 1.1; }
   // el orden de los trabajos del bloque: siempre empieza con tuercas y no repite el mismo dos veces seguidas
-  const plan = []; for (let k = 0; k < rounds; k++) { if (!work || k === 0) { plan.push('nut'); continue; } const L = ['nut', 'wheel', 'oil', 'diag'].filter(q => q !== plan[k - 1]); plan.push(L[Math.floor(Math.random() * L.length)]); }
+  const plan = []; for (let k = 0; k < rounds; k++) { if (!work || k === 0) { plan.push('nut'); continue; } const L = ['nut', 'wheel', 'oil', 'diag', 'bat', 'paint', 'quote'].filter(q => q !== plan[k - 1] && (q !== 'bat' || plan.indexOf('bat') < 0)); plan.push(L[Math.floor(Math.random() * L.length)]); }
+  if (opts.plan) { plan.length = 0; opts.plan.forEach(q => plan.push(q)); }      // para probar un juego concreto
   const box = $('mg-k'), bar = $('mg-bar'), btn = $('mg-b');
   const show = custom => { bar.hidden = custom; box.hidden = !custom; btn.hidden = custom && kind !== 'oil'; if (!custom) box.innerHTML = ''; };
   const head = (t, x) => { $('mg-t').textContent = work ? KIND_TXT[kind] : (opts.title || KIND_TXT.nut); $('mg-x').textContent = title + ' · ' + t + ' (' + (i + 1) + ' de ' + rounds + '). ' + x; };
   const finish = (r, msg) => { if (wait > 0) return; score += r; i++; wait = .7; K = null; $('mg-r').textContent = msg; if (work) P.ethan.hit(r >= .9); sfx(r >= .5 ? 'hit' : 'bad'); if (work && r >= .5 && G.fx) { G.fx.sparks(sp.fxX, .95, sp.fxZ, r >= .9 ? 14 : 6); if (r >= .9) G.fx.nuts(sp.fxX, 1, sp.fxZ, 2, 0); } };
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; };
-  const start = () => { kind = plan[i]; btn.textContent = '¡Ahora!';
+  const start = () => { kind = plan[i]; btn.textContent = '¡Ahora!'; G.mgDiag = G.mgBat = null;
     if (kind === 'nut') { show(false); zw = Math.max(.12, .26 - i * .012); zc = zw / 2 + Math.random() * (1 - zw); $('mg-z').style.left = (zc - zw / 2) * 100 + '%'; $('mg-z').style.width = zw * 100 + '%'; head((opts.word || 'tuerca'), 'Para la aguja en la zona verde.'); return; }
     show(true); box.innerHTML = '';
     if (kind === 'wheel') { // las cinco tuercas en estrella: se enciende la que toca
@@ -245,18 +253,39 @@ export function workBlock(hours, title, cb, opts) {
     if (kind === 'diag') { // qué le pasa: tres respuestas, ocho segundos
       const f = FAULTS[Math.floor(Math.random() * FAULTS.length)], opts2 = [f[1]].concat(f[2]).sort(() => Math.random() - .5); head('diagnóstico', '«' + f[0] + '». ¿Qué le pasa?'); const l = el('div', 'mg-diag'); K = { t: 0, lim: 9 }; G.mgDiag = f[1];
       const pick = o => { if (!K) return; const ok = o === f[1]; finish(ok ? (K.t < 4 ? 1 : .8) : 0, ok ? 'Exacto: ' + f[1].toLowerCase() + '.' : 'No: era ' + f[1].toLowerCase() + '. Manolo suspira.'); };
-      opts2.forEach((o, k) => { const b = el('button', null, (k + 1) + '. ' + o); b.type = 'button'; b.onclick = () => pick(o); l.appendChild(b); }); box.appendChild(l); K.key = k => { const m = /^(?:Digit|Numpad)([1-3])$/.exec(k); if (m) { pick(opts2[+m[1] - 1]); return true; } return false; }; K.timeout = () => finish(0, 'Se ha cansado de esperar. Era ' + f[1].toLowerCase() + '.'); } };
+      opts2.forEach((o, k) => { const b = el('button', null, (k + 1) + '. ' + o); b.type = 'button'; b.onclick = () => pick(o); l.appendChild(b); }); box.appendChild(l); K.key = k => { const m = /^(?:Digit|Numpad)([1-3])$/.exec(k); if (m) { pick(opts2[+m[1] - 1]); return true; } return false; }; K.timeout = () => finish(0, 'Se ha cansado de esperar. Era ' + f[1].toLowerCase() + '.'); return; }
+    if (kind === 'bat') { // pinzas: las cuatro, en orden; equivocarse hace chispa
+      head('pinzas', 'Engancha las cuatro pinzas en su orden (o su número).'); const bt = el('div', 'mg-bat'); [['Muerta'], ['Buena']].forEach(q => { const sp2 = el('span'); sp2.appendChild(el('i')); sp2.appendChild(document.createTextNode(q[0])); bt.appendChild(sp2); }); box.appendChild(bt);
+      const ord = BAT.map((t, k) => k).sort(() => Math.random() - .5), l = el('div', 'mg-diag'), bs = []; K = { t: 0, step: 0, err: 0 };
+      const tap = q => { if (!K) return; const k = ord[q]; if (k === K.step) { bs[q].classList.add('ok'); bs[q].disabled = true; sfx('ui'); K.step++; if (K.step >= 4) { const r = Math.max(0, Math.min(1, 1.1 - K.t / 14 - K.err * .3)); finish(r, r >= .9 ? '¡Arranca a la primera! El cliente te mira como a un mago.' : r >= .5 ? 'Arranca. Bien.' : 'Arranca… después de unos cuantos chispazos.'); } } else { K.err++; bs[q].classList.add('bad'); setTimeout(() => bs[q] && bs[q].classList.remove('bad'), 300); sfx('bad'); $('mg-r').textContent = '¡Chispazo! Esa no toca todavía.'; } };
+      ord.forEach((k, q) => { const b = el('button', null, (q + 1) + '. ' + BAT[k]); b.type = 'button'; b.onclick = () => tap(q); l.appendChild(b); bs.push(b); }); box.appendChild(l); G.mgBat = () => K ? ord.indexOf(K.step) : -1;
+      K.key = k => { const m = /^(?:Digit|Numpad)([1-4])$/.exec(k); if (m) { tap(+m[1] - 1); return true; } return false; }; return; }
+    if (kind === 'quote') { // presupuesto de cabeza: la pieza más las horas a 40 € (el IVA, otro día)
+      const PZ = [['Pastillas de freno', 45, 1], ['Batería', 95, .5], ['Kit de embrague', 260, 4], ['Amortiguador', 70, 1.5], ['Correa de distribución', 180, 3], ['Alternador', 150, 2], ['Bujías', 30, .5], ['Termostato', 35, 1.5]], z = PZ[Math.floor(Math.random() * PZ.length)], ok = z[1] + z[2] * 40, f = v => v + ' €';
+      const opts3 = [ok, ok + (Math.random() < .5 ? 20 : -20), ok + (Math.random() < .5 ? 40 : -40)].filter((v, k, a) => a.indexOf(v) === k && v > 0).sort(() => Math.random() - .5);
+      head('presupuesto', z[0] + ': ' + f(z[1]) + ' la pieza y ' + String(z[2]).replace('.', ',') + ' h de mano de obra a 40 €/h. ¿Cuánto le dices?'); const l = el('div', 'mg-diag'); K = { t: 0, lim: 12 }; G.mgDiag = f(ok);
+      const pick = v => { if (!K) return; finish(v === ok ? (K.t < 6 ? 1 : .8) : 0, v === ok ? 'Cuadra: ' + f(ok) + '. El cliente ni pestañea.' : 'No cuadra: eran ' + f(ok) + '. Manolo lo rehace con la calculadora.'); };
+      opts3.forEach((v, k) => { const b = el('button', null, (k + 1) + '. ' + f(v)); b.type = 'button'; b.onclick = () => pick(v); l.appendChild(b); }); box.appendChild(l); K.key = k => { const m = /^(?:Digit|Numpad)([1-3])$/.exec(k); if (m && opts3[+m[1] - 1] !== undefined) { pick(opts3[+m[1] - 1]); return true; } return false; }; K.timeout = () => finish(0, 'El cliente se ha ido a otro taller. Eran ' + f(ok) + '.'); return; }
+    if (kind === 'paint') { // arañazos en el capó: salen de uno en uno, se pulen tocándolos (o con el teclado numérico, como está dibujado)
+      head('capó', 'Toca cada arañazo antes de que se pierda (teclas 1-9).'); const gr = el('div', 'mg-grid'), cells = []; for (let k = 0; k < 9; k++) { const b = el('button', null, String([7, 8, 9, 4, 5, 6, 1, 2, 3][k])); b.type = 'button'; gr.appendChild(b); cells.push(b); } box.appendChild(gr);
+      K = { t: 0, cur: -1, life: 0, n: 0, hit: 0, max: 7 }; const next = () => { if (K.cur >= 0) cells[K.cur].classList.remove('on'); if (K.n >= K.max) { const r = K.hit / K.max; finish(r >= .99 ? 1 : r >= .7 ? .75 : r >= .45 ? .4 : 0, r >= .99 ? '¡Como el día que salió del concesionario!' : r >= .7 ? 'Ha quedado apañado.' : 'Se ven más rayas que antes.'); return; } let c; do c = Math.floor(Math.random() * 9); while (c === K.cur); K.cur = c; K.life = Math.max(.75, 1.35 - K.n * .08); K.n++; cells[c].classList.add('on'); };
+      const tap = c => { if (!K || c !== K.cur) { if (K) sfx('bad'); return; } cells[c].classList.remove('on'); cells[c].classList.add('ok'); setTimeout(() => cells[c] && cells[c].classList.remove('ok'), 160); K.hit++; sfx('ui'); K.cur = -1; K.life = .18; };
+      cells.forEach((b, k) => { b.onclick = () => tap(k); }); K.key = k => { const m = /^(?:Digit|Numpad)([1-9])$/.exec(k); if (m) { tap([6, 7, 8, 3, 4, 5, 0, 1, 2][+m[1] - 1]); return true; } return false; }; K.tick = dt => { if ((K.life -= dt) <= 0) next(); }; K.life = .3; } };
   $('mg').hidden = false; $('mg-r').textContent = ''; start();
-  const done = () => { G.mgTick = G.mgPress = G.mgKey = G.mgDiag = null; $('mg').hidden = true; show(false); btn.textContent = '¡Ahora!'; btn.hidden = false; if (work) { P.anim = null; P.ethan.setTool(false); G.cam.manual = 0; G.cam.zoomK = 1; G.cam.lift = 0; S.energy = Math.max(1, S.energy - hours * 5); S.hunger = Math.max(0, S.hunger - hours * 4.5); } G.busy = false; cb(score / rounds); };
+  const done = () => { G.mgTick = G.mgPress = G.mgKey = G.mgDiag = G.mgBat = null; $('mg').hidden = true; show(false); btn.textContent = '¡Ahora!'; btn.hidden = false; if (work) { P.anim = null; P.ethan.setTool(false); G.cam.manual = 0; G.cam.zoomK = 1; G.cam.lift = 0; S.energy = Math.max(1, S.energy - hours * 5); S.hunger = Math.max(0, S.hunger - hours * 4.5); } G.busy = false; cb(score / rounds); };
   G.mgTick = dt => { if (wait > 0) { if ((wait -= dt) <= 0) { $('mg-r').textContent = ''; if (i >= rounds) done(); else start(); } return; }
     if (kind === 'nut') { pos += dir * dt * (opts.speed || .8 + i * .08); if (pos > 1) { pos = 1; dir = -1; } else if (pos < 0) { pos = 0; dir = 1; } $('mg-c').style.left = pos * 100 + '%'; return; }
     if (!K) return; if (kind === 'wheel') { K.t += dt; if (K.t > 12) finish(Math.max(0, K.step / 5 * .5 - K.err * .1), 'Se te ha hecho de noche con la rueda.'); }
     else if (kind === 'oil' && K.on) { K.lv = Math.min(1, K.lv + dt * K.v); K.fill.style.height = K.lv * 100 + '%'; if (K.lv >= 1) { K.on = false; finish(0, 'Rebosa por todas partes. Fregona.'); } }
-    else if (kind === 'diag') { K.t += dt; if (K.t > K.lim && K.timeout) K.timeout(); } };
+    else if (kind === 'diag' || kind === 'quote') { K.t += dt; if (K.t > K.lim && K.timeout) K.timeout(); }
+    else if (kind === 'bat') { K.t += dt; if (K.t > 20) finish(Math.max(0, K.step / 4 * .4), 'El cliente ha llamado a la grúa.'); }
+    else if (kind === 'paint' && K.tick) K.tick(dt); };
   G.mgPress = () => { if (wait > 0) return; if (kind === 'nut') { const d = Math.abs(pos - zc), r = d < zw * .2 ? 1 : d < zw / 2 ? .7 : 0; finish(r, r === 1 ? (opts.hit || '¡Clavada!') : r ? 'Bien' : (opts.miss || 'Te has pasado de rosca')); return; } if (K && K.press) K.press(); };
   G.mgKey = k => !!(K && K.key && K.key(k));
   btn.onclick = () => G.mgPress && G.mgPress();
 }
+
+G.workBlock = workBlock;      // para las pruebas
 
 // ---------- Radio Sestao: titulares mientras conduces
 const RADIO = ['Ethan pide un adelanto de nómina. El jefe se ríe durante once minutos.', 'El C4 de Ethan pasa la ITV. La ITV no se ha recuperado.', 'Ali confirma que el kebab de los domingos «está bien». No precisa de qué domingo.', 'Jokin visto por Urbinaga. Nadie sabe qué trama. Nunca nadie lo sabe.', 'La Aquarius de limón sube 5 céntimos. Ethan valora mudarse a Portugalete.', 'Sádaba lanza el SádabaCoin. Vale lo que él diga ese día.', 'Récord en el Bar Ekintza: a alguien le tocó algo en una caja. Se investiga.', 'Lourdes reconoce que no sabe qué lleva la tortilla sorpresa. «Es parte de la sorpresa».', 'Hacienda abre oficina en Sestao con vistas directas al taller de Ethan.', 'La patrulla patinete alcanza los 25 km/h. Cuesta abajo y con viento a favor.', 'Expertos en tráfico: Ethan ha encontrado sitio para aparcar. Sospechan que lo compró.', 'Sádaba niega haber vendido una PS5 llena de ladrillos: «Eran ladrillos de calidad».', 'El encargado confirma que Ethan ficha antes de que abra el taller. Nadie sabe cómo entra.', 'El chándal de Ethan, declarado prenda oficial para bodas, bautizos y comuniones.', 'Tráfico: retenciones en la Gran Vía. Alguien ha aparcado en doble fila. Otra vez.', 'El tiempo en Sestao: sirimiri. Como ayer. Como mañana.', 'Autos Sádaba amplía la garantía: ahora cubre hasta la puerta del concesionario.'];
@@ -264,7 +293,7 @@ let radioT = 25, radioI = Math.floor(Math.random() * RADIO.length), mainSt = nul
 // titulares que salen del propio juego: el tiempo que hace y una calle principal del mapa
 function liveLine() {
   if (!mainSt) { const set = new Set(); W.map.roads.forEach(r => { if (r.n && !r.x && !r.iso && (r.t === 'primary' || r.t === 'secondary' || r.t === 'tertiary') && !/^BI-|^N-|^A-/.test(r.n)) set.add(r.n); }); mainSt = [...set]; }
-  if (Math.random() < .5 || !mainSt.length) return 'El tiempo en Sestao: ' + SKY.label.toLowerCase() + '. ' + (SKY.rain > .3 ? 'El paraguas, ni lo cierres.' : SKY.cover > .7 ? 'Paraguas por si acaso.' : 'Aprovecha, que esto no dura.');
+  if (Math.random() < .5 || !mainSt.length) return 'El tiempo en Sestao: ' + SKY.label.toLowerCase() + '. ' + (SKY.rain > .3 ? 'El paraguas, ni lo cierres.' : SKY.cover > .62 ? 'El Serantes tiene txapela: paraguas.' : SKY.cover > .5 ? 'Paraguas por si acaso.' : 'Se ve el Serantes clarito. Aprovecha, que esto no dura.');
   return 'Tráfico: circulación lenta en ' + mainSt[Math.floor(Math.random() * mainSt.length)] + '. Lo de todos los días.';
 }
 export function tickRadio(dt) {
@@ -275,10 +304,19 @@ export function tickRadio(dt) {
 }
 
 // ---------- el móvil
+// ayuda: lo justo para quien llega de nuevas (en páginas, para que quepa en el móvil)
+const HELP = [
+  ['🎮 Controles', 'Ordenador: WASD para moverte, Mayús para correr, E para todo (entrar, hablar, coger el ascensor), F para subir o bajar del coche, Espacio freno de mano, V cambia la cámara, M el mapa, T el móvil y R la cámara rápida. Móvil: palanca a la izquierda, botones a la derecha, y se arrastra para mirar.'],
+  ['⏰ El día de Ethan', 'Suena el despertador a las 6:30. A las 8:00 se ficha en el taller (de lunes a viernes) y se trabaja con minijuegos: tuercas, ruedas, aceite, averías, arrancar con pinzas, pulir arañazos y presupuestos de cabeza. De 13:00 a 15:00, parón para comer. A las 18:00, a casa. La agenda de la izquierda dice siempre qué toca y el GPS se pone solo.'],
+  ['🅿️ Aparcar', 'Por la tarde la zona de casa (cortina verde) está llena. Da vueltas: cuando se va alguien, te avisa y el GPS te lleva al hueco, pero vuela. Valla roja, ocupado; valla verde con haz de luz, libre. Si no hay manera, el parking grande (cortina azul). Sin el coche bien aparcado no se sube a dormir.'],
+  ['🍢 Entre medias', 'En los bares del mapa: pintxo-pote (jueves y viernes por la tarde, tres bares), futbolín, mus y el partido del Athletic el finde. Frontones y campos para echar un partido. En casa: cocinar (si has hecho la compra en el súper), buzoneo y recados de la vecina. En el kebab, el bar y lo de Lourdes salen encargos. Los planes de cada día se eligen en el despertador.'],
+  ['🗺️ Moverse por Sestao', 'Las escaleras, rampas mecánicas y ascensores públicos son atajos entre las calles de arriba y las de abajo. Metro (bajo los fosteritos de cristal) y tren llevan de una estación a otra. Si el Serantes tiene txapela, llueve. Si el coche se queda lejos, el móvil llama a la grúa.']];
+function howTo(i) { i = i || 0; const h = HELP[i]; dialog({ icon: '❓', title: h[0], text: h[1], close: 'Volver', onClose: () => openPhone(), options: i + 1 < HELP.length ? [{ t: 'Siguiente', d: HELP[i + 1][0], f: () => howTo(i + 1) }] : [] }); }
 export function openPhone() {
   const S = G.S, far = G.car && G.mode === 'foot' && Math.hypot(G.car.x - P.x, G.car.z - P.z) > 40;
   dialog({ icon: '📱', title: 'Móvil de Ethan', text: fmtTime(S) + ' · ' + eur(S.money) + ' · ' + rank(S)[1] + ' · ' + SKY.label, options: [
     { t: 'Agenda y avisos', d: 'Qué toca hoy, mejoras activas y mensajes', f: () => openAgenda(() => openPhone()) },
+    { t: 'Cómo se juega', d: 'Controles, el día de Ethan, aparcar y qué más hay', f: () => howTo() },
     { t: 'Sestao online', d: !NET.ok ? 'Ver a otros jugadores por el pueblo (aquí no hay conexión)' : !NET.on ? 'Apagado' : NET.n ? NET.n + ' por el pueblo ahora mismo' : 'Conectado: de momento estás solo', tag: NET.ok && NET.on ? '🟢' : '', f: () => openNet(() => openPhone()) },
     { t: 'Mapa y GPS', d: 'Busca una calle o elige a dónde ir', f: () => { closeDialog(); openMap(); } },
     { t: 'Álbum de Sestao', d: 'Barrios y sitios descubiertos', f: () => openAlbum(() => openPhone()) },

@@ -26,7 +26,7 @@ export function fade(on) { $('fade').classList.toggle('on', !!on); }
 // ---------- menús
 export function dialog(o) {
   dl = o; G.busy = true; clearKeys(); $('banner').hidden = true; bannerT = 0; $('d-ic').textContent = o.icon || ''; $('d-t').textContent = o.title || ''; $('d-x').textContent = o.text || ''; const box = $('d-o'); box.innerHTML = '';
-  (o.options || []).forEach((op, i) => { const b = document.createElement('button'); b.className = 'opt'; b.disabled = !!op.dis; b.innerHTML = '<i>' + (i + 1) + '</i><div><b></b><small></small></div>' + (op.tag ? '<em></em>' : ''); b.querySelector('b').textContent = op.t; b.querySelector('small').textContent = op.d || ''; if (op.tag) b.querySelector('em').textContent = op.tag; b.onclick = () => { if (!op.dis) op.f(); }; box.appendChild(b); });
+  (o.options || []).forEach((op, i) => { const b = document.createElement('button'); b.className = 'opt'; b.disabled = !!op.dis; b.innerHTML = '<i>' + (i < 9 ? i + 1 : i === 9 ? 0 : '·') + '</i><div><b></b><small></small></div>' + (op.tag ? '<em></em>' : ''); b.querySelector('b').textContent = op.t; b.querySelector('small').textContent = op.d || ''; if (op.tag) b.querySelector('em').textContent = op.tag; b.onclick = () => { if (!op.dis) op.f(); }; box.appendChild(b); });
   $('d-c').textContent = o.close || 'Salir'; $('d-c').hidden = !!o.noClose; $('dlg').hidden = false; setPrompt();
 }
 export function closeDialog() { const o = dl; dl = null; $('dlg').hidden = true; G.busy = false; clearKeys(); if (o && o.onClose) o.onClose(); }
@@ -35,7 +35,7 @@ export const dialogOpen = () => !!dl;
 export function hudKey(k) {
   if (!$('bigmap').hidden) { if (k === 'Escape' || k === 'KeyM') closeMap(); return true; }
   if (!dl) return false; const m = /^(?:Digit|Numpad)(\d)$/.exec(k);
-  if (m) { const op = (dl.options || [])[+m[1] - 1]; if (op && !op.dis) op.f(); } else if ((k === 'Escape' || k === 'KeyQ') && !dl.noClose) closeDialog(); else if (k === 'Enter' && (dl.options || []).length === 1 && !dl.options[0].dis) dl.options[0].f();
+  if (m) { const op = (dl.options || [])[m[1] === '0' ? 9 : +m[1] - 1]; if (op && !op.dis) op.f(); } else if ((k === 'Escape' || k === 'KeyQ') && !dl.noClose) closeDialog(); else if (k === 'Enter' && (dl.options || []).length === 1 && !dl.options[0].dis) dl.options[0].f();
   return true;
 }
 

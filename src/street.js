@@ -7,7 +7,7 @@ import { rng } from './util.js';
 import { GR } from './graph.js';
 import { standY, deckY, gY } from './terrain.js';
 
-export const ST = { pois: [], pgrid: new Map(), transit: [], lights: [], stops: [], cars: 0 };
+export const ST = { pois: [], pgrid: new Map(), transit: [], lights: [], stops: [], cars: 0, fost: [] };
 const key = (a, b) => a * 100003 + b;
 // semáforos: todos van a la vez. 0 verde, 1 ámbar, 2 rojo (para los coches)
 export const lightState = t => { const p = t % 36; return p < 23 ? 0 : p < 26 ? 1 : 2; };
@@ -15,12 +15,13 @@ export const lightState = t => { const p = t % 36; return p < 23 ? 0 : p < 26 ? 
 export function buildStreet(M, root, q) {
   const r = rng(4242), lit = mat('lit'), far = q === 1 ? .6 : q === 2 ? 1 : 1.5;
   const soft = (x, z, rad, kind, refs) => { const p = addProp(x, z, rad, kind); p.soft = true; p.inst = refs; return p; };
-  const clear = (x, z, m) => !inBuilding(x, z) && !inWaterPoly(x, z) && roadNear(x, z, 9, true).d > (m === undefined ? .3 : m);
+  const clear = (x, z, m) => !inBuilding(x, z) && !inWaterPoly(x, z) && roadNear(x, z, 9, true).d > (m === undefined ? .3 : m) && !inFost(x, z, m || 0);
+  fosteritos(M, root, q);
 
   // ---------- árboles: los del mapa y los de las manchas de bosque
   { const A = [], T = [], put = (x, z) => { (r() < .78 ? A : T).push([x, z, r() * 6.28, 0, .8 + r() * .55]); };
     // ninguno en la calzada, en un cruce, en mitad de un camino ni atravesando el tablero de un puente (el mapa trae algunos así, y las calles ya no miden lo que medían cuando se colocaron)
-    let cutT = 0; const okTree = (x, z) => { if (roadNear(x, z, 9, true).d < .6 || roadNear(x, z, 9, false).d < .15 || nearJunc(x, z, .8)) return false; const dk = deckY(x, z); return dk < -1e8 || dk - gY(x, z) > 9; };
+    let cutT = 0; const okTree = (x, z) => { if (inFost(x, z, 1.2) || roadNear(x, z, 9, true).d < .6 || roadNear(x, z, 9, false).d < .15 || nearJunc(x, z, .8)) return false; const dk = deckY(x, z); return dk < -1e8 || dk - gY(x, z) > 9; };
     for (let k = 0; k < (M.trees || []).length; k += 2) { if (okTree(M.trees[k], M.trees[k + 1])) put(M.trees[k], M.trees[k + 1]); else cutT++; } ST.treesCut = cutT;
     (M.green || []).forEach(a => { if (a.k !== 'wood') return; const b = bboxOf(a.p), n = Math.min(110, Math.floor((b[2] - b[0]) * (b[3] - b[1]) / 150)); for (let i = 0; i < n; i++) { const x = b[0] + r() * (b[2] - b[0]), z = b[1] + r() * (b[3] - b[1]); if (inPoly(a.p, x, z) && !inBuilding(x, z) && roadNear(x, z, 6, false).d > .8) put(x, z); } });
     const tv = new Vox(); tv.box(0, 0, 0, .34, 2.3, .34, 0x6a4a34); tv.box(0, 2.0, 0, 2.5, 1.5, 2.5, 0x4f8a45); tv.box(0, 3.3, 0, 1.8, 1.2, 1.8, 0x5fa052); tv.box(.5, 2.5, .4, 1.5, 1.3, 1.5, 0x437a3c);
@@ -37,7 +38,7 @@ export function buildStreet(M, root, q) {
         /* giro de la calle en los dos extremos de este tramo */ const tn = kk => { if (kk < 2 || kk + 3 >= rd.p.length) return 0; let d = Math.abs(Math.atan2(rd.p[kk + 2] - rd.p[kk], rd.p[kk + 3] - rd.p[kk + 1]) - Math.atan2(rd.p[kk] - rd.p[kk - 2], rd.p[kk + 1] - rd.p[kk - 1])); if (d > Math.PI) d = 2 * Math.PI - d; return d; }, t0 = tn(k), t1 = tn(k + 2);
         const bad = q => nearJunc(rd.p[k] + ux * q, rd.p[k + 1] + uz * q, 4.5) || (q < 6 && t0 > .4) || (l - q < 6 && t1 > .4);
         while (s < l) { /* en las esquinas de los cruces y en las curvas cerradas estorban al girar: la farola se corre unos metros calle adelante o atrás */ let s2 = s; if (bad(s)) { s2 = -1; for (const d of [7, -7, 13, -13]) { const q = s + d; if (q > 0 && q < l && !bad(q)) { s2 = q; break; } } }
-          if (s2 >= 0) { const x = rd.p[k] + ux * s2 - uz * off * side, z = rd.p[k + 1] + uz * s2 + ux * off * side; if (!inBuilding(x, z) && (rd.b || !inWaterPoly(x, z)) && roadNear(x, z, 9, true).d > .2 && !collide(x, z, .3, true).hit) lamps.push([x, z, Math.atan2(ux * side, uz * side)]); } s += gap; side = -side; } acc = s - l; } });
+          if (s2 >= 0) { const x = rd.p[k] + ux * s2 - uz * off * side, z = rd.p[k + 1] + uz * s2 + ux * off * side; if (!inBuilding(x, z) && (rd.b || !inWaterPoly(x, z)) && roadNear(x, z, 9, true).d > .2 && !collide(x, z, .3, true).hit && !inFost(x, z, .5)) lamps.push([x, z, Math.atan2(ux * side, uz * side)]); } s += gap; side = -side; } acc = s - l; } });
     const lv = new Vox(); lv.box(0, 0, 0, .16, 5.6, .16, 0x3a3f46); lv.box(0, 0, 0, .3, .5, .3, 0x2c3036); lv.bx(-.08, 5.5, -.08, 1.3, 5.62, .08, 0x3a3f46);
     const hv = new Vox(); hv.bx(.7, 5.36, -.16, 1.36, 5.5, .16, 0xffffff); W.mats.lamp = new THREE.MeshBasicMaterial({ color: 0x555a60 });
     const a = instChunks(root, lv.geometry(), lit, lamps, { far: 300 * far }), b = instChunks(root, hv.geometry(), W.mats.lamp, lamps, { far: 420 * far }); let c = null;
@@ -98,9 +99,29 @@ export function buildStreet(M, root, q) {
     const refs = instChunks(root, v.geometry(), lit, list, { far: 260 * far, shadow: q > 1 }), lp = list.map((t, i) => soft(t[0], t[1], .14, 'sign', [refs[i]]));
     ['R', 'A', 'G'].forEach((n, i) => { const b = new Vox(); b.box(0, 3.78 - i * .31, .2, .2, .2, .04, 0xffffff); const m = W.mats['tl' + n] = new THREE.MeshBasicMaterial({ color: 0x222222 }); const rf = instChunks(root, b.geometry(), m, list, { far: 260 * far }); lp.forEach((p, k) => p.inst.push(rf[k])); }); }
 
-  poiSigns(M, root, q, far); transit(M, root, q); landmarks(M, root, q);
+  poiSigns(M, root, q, far); transit(M, root, q); landmarks(M, root, q); puente(root, q);
 }
-export function tickStreet(t) { const s = lightState(t), m = W.mats; if (m.tlR && ST.ls !== s) { ST.ls = s; m.tlR.color.setHex(s === 2 ? 0xff3a2e : 0x3a1512); m.tlA.color.setHex(s === 1 ? 0xffb52e : 0x3a2a10); m.tlG.color.setHex(s === 0 ? 0x3cff6a : 0x103a1a); } }
+// ---------- a lo lejos: el Puente Colgante (Portugalete–Getxo), fuera del mapa. Se dibuja sin niebla y, si queda más allá de lo que
+// alcanza la cámara, se acerca y se encoge en la misma proporción (se ve igual, pero entra en el campo de visión).
+const FARM = []; const FV = new THREE.Vector3();
+function puente(root, q) {
+  const v = new Vox(), C = 0x4b3b39, D = 0x3a2e2d, H = 61, S = 160, G0 = 45, beam = (x0, y0, x1, y1, z, t, col) => { const l = Math.hypot(x1 - x0, y1 - y0); v.mtx(new THREE.Matrix4().makeRotationZ(Math.atan2(y1 - y0, x1 - x0)).setPosition(x0, y0, z)).bx(0, -t, -t, l, t, t, col); v.mtx(null); };
+  // dos torres de celosía, cada una de cuatro patas abiertas abajo, con travesaños y aspas
+  [-S / 2, S / 2].forEach(tx => { for (const zz of [-1, 1]) { for (const xs of [-1, 1]) beam(tx + xs * 5.5, 0, tx + xs * 1.6, H, zz * 3.2, .55, C); for (let k = 1; k < 7; k++) { const y = k * H / 7, w = 5.5 - (5.5 - 1.6) * y / H; v.bx(tx - w, y - .3, zz * 3.2 - .3, tx + w, y + .3, zz * 3.2 + .3, D); const y2 = (k - 1) * H / 7, w2 = 5.5 - (5.5 - 1.6) * y2 / H; beam(tx - w2, y2, tx + w, y, zz * 3.2, .18, D); beam(tx + w2, y2, tx - w, y, zz * 3.2, .18, D); } }
+    for (let k = 1; k < 8; k++) v.box(tx, k * H / 8, 0, 2.2, .5, 6.6, D); v.box(tx, H - .4, 0, 4.6, 1.6, 8, C); });
+  // la viga de arriba (celosía de 5 m de canto) y los tirantes en abanico desde lo alto de las torres
+  for (const zz of [-3.2, 3.2]) { v.bx(-S / 2, G0, zz - .3, S / 2, G0 + .7, zz + .3, C); v.bx(-S / 2, G0 + 5, zz - .3, S / 2, G0 + 5.7, zz + .3, C); for (let k = 0; k < 16; k++) { const x = -S / 2 + k * S / 16; beam(x, G0 + .4, x + S / 16, G0 + 5.4, zz, .16, D); } }
+  for (const side of [-1, 1]) for (let k = 1; k <= 7; k++) { const x0 = side * S / 2, x1 = side * (S / 2 - k * 10.5); for (const zz of [-3.4, 3.4]) beam(x0, H - 1, x1, G0 + 5.7, zz, .1, 0x2a2224); }
+  // amarres hacia atrás y la barquilla colgando sobre el agua
+  for (const side of [-1, 1]) for (const zz of [-3.4, 3.4]) beam(side * S / 2, H - 1, side * (S / 2 + 95), 3, zz, .13, 0x2a2224);
+  const gx = -22; for (const zz of [-2.6, 2.6]) for (const dx of [-6, 6]) beam(gx + dx, G0, gx + dx * .6, 6.5, zz, .05, 0x2a2224); v.box(gx, 3.2, 0, 16, 3.4, 7.5, 0x7a1f1f, { top: 0x55585e }); v.box(gx, 6.6, 0, 9, .8, 6, 0x55585e);
+  const mt = new THREE.MeshLambertMaterial({ vertexColors: true, fog: false }), m = new THREE.Mesh(v.geometry(), mt); m.frustumCulled = false; m.matrixAutoUpdate = false; root.add(m);
+  // 43,323 N 3,017 O; la luz va de Portugalete a Las Arenas, más o menos de oeste-suroeste a este-noreste
+  FARM.push({ m, x: -945, y: 2, z: -1574, ry: .3, mt });
+}
+export function tickStreet(t, cam, haze) {
+  if (cam) for (const f of FARM) { FV.set(f.x - cam.position.x, f.y - cam.position.y, f.z - cam.position.z); const d = FV.length(), lim = cam.far * .82, k = d > lim ? lim / d : 1; f.m.position.set(cam.position.x + FV.x * k, cam.position.y + FV.y * k, cam.position.z + FV.z * k); f.m.scale.setScalar(k); f.m.rotation.set(0, f.ry, 0); f.m.updateMatrix();
+    const h = Math.min(.72, Math.max(.2, d / 2600)); f.mt.color.setScalar(1 - h); if (haze) f.mt.emissive.copy(haze).multiplyScalar(h); } const s = lightState(t), m = W.mats; if (m.tlR && ST.ls !== s) { ST.ls = s; m.tlR.color.setHex(s === 2 ? 0xff3a2e : 0x3a1512); m.tlA.color.setHex(s === 1 ? 0xffb52e : 0x3a2a10); m.tlG.color.setHex(s === 0 ? 0x3cff6a : 0x103a1a); } }
 
 // ---------- rótulos de comercios: el nombre sale del mapa (OpenStreetMap); el color, del tipo de comercio
 export const CAT = {
@@ -150,10 +171,45 @@ function poiSigns(M, root, q, far) {
 // comercio en cuya puerta está el jugador (o null)
 export function poiAt(x, z) { let best = null, bd = 2.1; const cx = Math.floor(x / 20), cz = Math.floor(z / 20); for (let i = cx - 1; i <= cx + 1; i++) for (let j = cz - 1; j <= cz + 1; j++) { const l = ST.pgrid.get(key(i, j)); if (l) for (const p of l) { const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; best = p; } } } return best; }
 
+// ---------- bocas de metro: los «fosteritos», la concha de cristal y acero que cubre la escalera que baja al andén.
+// Se colocan en la acera junto a la boca del mapa, alineados con la calle y sin pisar calzada, edificios ni agua.
+function inFost(x, z, m) { for (const o of ST.fost) { const dx = x - o.x0, dz = z - o.z0, a = dx * o.ax + dz * o.az, b = -dx * o.az + dz * o.ax; if (a > -1.4 - m && a < o.L + .4 + m && Math.abs(b) < o.R + .4 + m) return true; } return false; }
+function fosteritos(M, root, q) {
+  ST.fost = []; const L = 9, R = 1.85, HM = 2.9, prof = t => Math.pow(Math.cos(t * Math.PI / 2), .8);
+  const fits = (x0, z0, ax, az) => { for (let a = -1.6; a <= L + .4; a += 1) for (const b of [-R - .3, 0, R + .3]) { const x = x0 + ax * a - az * b, z = z0 + az * a + ax * b; if (inBuilding(x, z) || inWaterPoly(x, z) || roadNear(x, z, 9, true).d < .15 || collide(x, z, .2, true).hit || inFost(x, z, .5)) return false; } return true; };
+  (M.transit || []).forEach(t => { if (t[2] !== 'metro') return; const B = M.bbox; if (t[0] < B[0] + 15 || t[0] > B[2] - 15 || t[1] < B[1] + 15 || t[1] > B[3] - 15) return;
+    if (deckY(t[0], t[1]) > -1e8 || t[4] === 'Urbinaga') return;                                     // Urbinaga es una estación en viaducto: allí basta el tótem
+    const n = roadNear(t[0], t[1], 25, true); if (!n.r) return; const rx = n.ux, rz = n.uz; let best = null;
+    // orientaciones: a lo largo de la calle (los dos sentidos) y, si no cabe, de través; la boca se puede correr hasta 7 m
+    for (let rr = 0; rr <= 7 && !best; rr += 1) for (let k = 0; k < (rr ? 8 : 1) && !best; k++) { const x = t[0] + Math.sin(k * .785) * rr, z = t[1] + Math.cos(k * .785) * rr;
+      for (const d of [[rx, rz], [-rx, -rz], [-rz, rx], [rz, -rx]]) { const x0 = x - d[0] * L / 2, z0 = z - d[1] * L / 2; if (fits(x0, z0, d[0], d[1])) { best = [x0, z0, d[0], d[1]]; break; } } }
+    if (!best) return; const [x0, z0, ax, az] = best, y0 = gY(x0, z0), ry = Math.atan2(ax, az), wy = (a, b) => gY(x0 + ax * a - az * b, z0 + az * a + ax * b) - y0;
+    const o = { src: t, x0, z0, ax, az, L, R, mx: x0 - ax * 1.1, mz: z0 - az * 1.1, tx: x0 - az * (R + .9) + ax * .6, tz: z0 + ax * (R + .9) + az * .6 }; ST.fost.push(o);
+    // escalera: peldaños cada vez más oscuros según bajan
+    const v = new Vox(), N = 16; for (let i = 0; i < N; i++) { const a0 = i * L / N, k = 1 - i / N * .75, g = wy(a0 + L / N / 2, 0); C2.setRGB(.42 * k, .44 * k, .47 * k); v.bx(-R * .82, g + .02, a0, R * .82, g + .05 + (i % 2) * .01, a0 + L / N, C2.getHex()); }
+    // costillas de acero, espina y largueros
+    const ribs = 8, steel = 0xb4bac0, seg = (ax0, ay0, ax1, ay1, zc, th) => { const l = Math.hypot(ax1 - ax0, ay1 - ay0); v.mtx(new THREE.Matrix4().makeRotationZ(Math.atan2(ay1 - ay0, ax1 - ax0)).setPosition(ax0, ay0, zc)).bx(0, -th, -th, l, th, th, steel); v.mtx(null); };
+    const top = []; for (let i = 0; i <= ribs; i++) { const tt = i / ribs * .93, zc = tt * L, h = HM * prof(tt), g = wy(zc, 0), th = i ? .06 : .1; top.push([zc, g + h]);
+      for (let j = 0; j < 9; j++) { const u0 = j / 9 * Math.PI, u1 = (j + 1) / 9 * Math.PI; seg(R * Math.cos(u0), g + h * Math.sin(u0), R * Math.cos(u1), g + h * Math.sin(u1), zc, th); } }
+    for (let i = 0; i + 1 < top.length; i++) { const a = top[i], b = top[i + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]); v.mtx(new THREE.Matrix4().makeRotationX(Math.atan2(-(b[1] - a[1]), b[0] - a[0])).setPosition(0, a[1], a[0])).bx(-.05, -.05, 0, .05, .05, l, steel); v.mtx(null); }
+    [-R, R].forEach(b => { for (let i = 0; i + 1 < top.length; i++) { const z0r = top[i][0], z1r = top[i + 1][0], g0 = wy(z0r, 0), g1 = wy(z1r, 0), l = Math.hypot(z1r - z0r, g1 - g0); v.mtx(new THREE.Matrix4().makeRotationX(Math.atan2(-(g1 - g0), z1r - z0r)).setPosition(b, g0 + .02, z0r)).bx(-.07, -.12, 0, .07, .12, l, 0x8d9399); v.mtx(null); } });
+    const m = v.mesh('lit', q > 1 ? 3 : 2); m.position.set(x0, y0, z0); m.rotation.y = ry; root.add(m);
+    // concha de cristal
+    const NU = 12, NT = 14, P = [], I = []; for (let i = 0; i <= NT; i++) { const tt = i / NT * .93, zc = tt * L, h = HM * prof(tt), g = wy(zc, 0); for (let j = 0; j <= NU; j++) { const u = j / NU * Math.PI; P.push(R * Math.cos(u), g + h * Math.sin(u), zc); } }
+    for (let i = 0; i < NT; i++) for (let j = 0; j < NU; j++) { const a = i * (NU + 1) + j, b = a + NU + 1; I.push(a, b, a + 1, a + 1, b, b + 1); }
+    const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); gg.setIndex(I); gg.computeVertexNormals();
+    if (!W.mats.fost) W.mats.fost = new THREE.MeshLambertMaterial({ color: 0xa9d2dc, transparent: true, opacity: .34, side: THREE.DoubleSide, depthWrite: false });
+    const gm = new THREE.Mesh(gg, W.mats.fost); gm.position.copy(m.position); gm.rotation.y = ry; gm.renderOrder = 2; root.add(gm);
+    // no se atraviesa: costados, cola y el hueco de la escalera
+    for (let a = .3; a <= L; a += 1.3) { [-R, R].forEach(b => addProp(x0 + ax * a - az * b, z0 + az * a + ax * b, .3, 'deco')); if (a > 1.4) addProp(x0 + ax * a, z0 + az * a, 1.25, 'deco'); } });
+}
+const C2 = new THREE.Color();
+
 // ---------- metro y tren: un tótem en cada boca o estación. Sirven para moverse rápido por el pueblo.
 function freeNear(x, z) { for (let rr = 0; rr < 30; rr += 2.5) for (let a = 0; a < 8; a++) { const px = x + Math.sin(a * .7854) * rr, pz = z + Math.cos(a * .7854) * rr; if (!inBuilding(px, pz) && !inWaterPoly(px, pz) && !collide(px, pz, .6, true).hit && roadNear(px, pz, 9, true).d > .6) return [px, pz]; if (!rr) break; } return null; }
 function transit(M, root, q) {
-  const met = [], trn = []; (M.transit || []).forEach(t => { const f = freeNear(t[0], t[1]); if (!f) return; const B = M.bbox; if (f[0] < B[0] + 6 || f[0] > B[2] - 6 || f[1] < B[1] + 6 || f[1] > B[3] - 6) return;
+  const met = [], trn = []; (M.transit || []).forEach(t => { const fo = ST.fost.find(o => o.src === t); if (fo) { ST.transit.push({ x: fo.mx, z: fo.mz, ex: fo.x0 - fo.ax * 2.4, ez: fo.z0 - fo.az * 2.4, k: 'metro', n: t[4] || 'Metro', e: t[3] || '' }); met.push([fo.tx, fo.tz, 0]); return; }
+    const f = freeNear(t[0], t[1]); if (!f) return; const B = M.bbox; if (f[0] < B[0] + 6 || f[0] > B[2] - 6 || f[1] < B[1] + 6 || f[1] > B[3] - 6) return;
     const o = { x: f[0], z: f[1], k: t[2], n: (t[2] === 'metro' ? t[4] : t[3]) || (t[2] === 'metro' ? 'Metro' : 'Estación'), e: t[3] || '' }; ST.transit.push(o); (t[2] === 'metro' ? met : trn).push([f[0], f[1], 0]); });
   const mk = (txt, col) => { const v = new Vox(); v.box(0, 0, 0, .3, 3.6, .3, 0x3a3f46); v.box(0, 3.6, 0, 1.5, 1.5, .3, col); voxText(v, txt, 0, txt.length > 1 ? 4.12 : 3.86, .16, txt.length > 1 ? .055 : .14, .04, 0xffffff, { center: true }); v.at(0, 0, 0, Math.PI); voxText(v, txt, 0, txt.length > 1 ? 4.12 : 3.86, .16, txt.length > 1 ? .055 : .14, .04, 0xffffff, { center: true }); v.at(); return v.geometry(); };
   instChunks(root, mk('M', 0xd0322e), mat('lit'), met, { far: 500, shadow: q > 1 }); instChunks(root, mk('TREN', 0x6b2a8a), mat('lit'), trn, { far: 500, shadow: q > 1 }); ST.transit.forEach(o => addProp(o.x, o.z, .3, 'deco'));

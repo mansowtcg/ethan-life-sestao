@@ -33,12 +33,13 @@ export function ambience(o) {
   const t = ctx.currentTime, k = o.on ? (o.inCar ? .55 : 1) : 0; amb.city.g.gain.setTargetAtTime(k * (.05 + o.day * .09), t, .6); amb.rain.g.gain.setTargetAtTime(k * o.rain * .11, t, .8);
   amb.train.g.gain.setTargetAtTime(k * Math.max(0, 1 - o.train / 150) * Math.min(1, .25 + o.trainV / 10) * .5, t, .25);
 }
-export function amb1(n) { // sonidos sueltos del ambiente
+export function amb1(n, o) { // sonidos sueltos del ambiente
   if (!ctx || muted) return;
   if (n === 'step') noise(.05, .1, 1500);
   else if (n === 'bird') { const f = 2400 + Math.random() * 1400; for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) tone(f + Math.random() * 500, .07, 'sine', .035, f * 1.25, i * .11); }
   else if (n === 'gull') { for (let i = 0; i < 3; i++) tone(1250 - i * 60, .22, 'sawtooth', .022, 760, i * .3); }
   else if (n === 'trainhorn') { tone(311, .7, 'sawtooth', .06); tone(370, .7, 'sawtooth', .06); }
-  else if (n === 'bell') { [0, .9, 1.8].forEach(w => { tone(523, 1.4, 'sine', .05, 0, w); tone(1046, .9, 'sine', .02, 0, w); }); }
+  else if (n === 'bell') { // campanadas: tantas como la hora, más flojas cuanto más lejos está el campanario
+    const k = o && o.n || 3, v = o && o.v !== undefined ? o.v : 1, f = 392; for (let i = 0; i < k; i++) { const w = i * 1.7; tone(f, 2.8, 'sine', .055 * v, 0, w); tone(f * 2, 1.7, 'sine', .026 * v, 0, w); tone(f * 2.4, 1.2, 'sine', .016 * v, 0, w); tone(f * .5, 3.4, 'sine', .03 * v, 0, w); } }
 }
 export function engine(on, speed, thr) { if (!ctx || !engGain) return; const t = ctx.currentTime; engGain.gain.setTargetAtTime(on ? .05 + Math.abs(thr || 0) * .05 : 0, t, .08); eng.frequency.setTargetAtTime(46 + Math.abs(speed) * 4.2, t, .08); }

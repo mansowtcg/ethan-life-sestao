@@ -203,7 +203,7 @@ function sounds(dt) {
   if ((wetT -= dt) < 0) { wetT = 3; waterNear = false; for (let a = 0; a < 8 && !waterNear; a++) if (inWaterPoly(G.px + Math.sin(a * .7854) * 70, G.pz + Math.cos(a * .7854) * 70)) waterNear = true; }
   if ((birdT -= dt) < 0) { birdT = 7 + Math.random() * 16; if (G.night < .4 && SKY.rain < .3 && G.mode === 'foot') amb1(waterNear && Math.random() < .6 ? 'gull' : 'bird'); }
   if (TRN.horn) { TRN.horn = 0; if (TRN.near < 260) amb1('trainhorn'); }
-  const h = Math.floor(G.S.min / 60); if (h !== lastHour) { if (lastHour >= 0 && h >= 8 && h <= 22 && G.mode === 'foot') amb1('bell'); lastHour = h; }
+  const h = Math.floor(G.S.min / 60); if (h !== lastHour) { if (lastHour >= 0 && h >= 8 && h <= 22 && (G.speed || 1) <= 1) { let bd = 1e9; for (const t of W.towers) bd = Math.min(bd, Math.hypot(t[0] - G.px, t[1] - G.pz)); const v = (1 - bd / 520) * (G.mode === 'car' ? .45 : 1); if (v > .05) amb1('bell', { n: h % 12 || 12, v }); } lastHour = h; }      // las horas del campanario más cercano
 }
 // dron: cámara libre para ver el pueblo desde arriba. El juego queda en pausa mientras tanto.
 function setDrone(on) {
@@ -234,7 +234,7 @@ function tick(dt) { // un paso de juego, sin dibujar
   } else { if (G.mgTick) G.mgTick(dt); if (!G.dr && G.mode === 'foot') { P.y = standY(P.x, P.z, P.y + .7); G.py = FXB.y = P.y; } P.ethan.root.position.set(P.x, P.y, P.z); P.ethan.root.rotation.y = P.yaw; P.ethan.update(dt); setPrompt(); }
   engine(G.mode === 'car' && !G.title && !G.busy, car.vf, I.my); ambience({ on: !G.title, day: 1 - G.night, rain: SKY.rain, train: TRN.near, trainV: TRN.v, inCar: G.mode === 'car' });
   updateSpots(dt, t, G.px, G.pz); updateCamera(dt); if ((skyT -= dt) < 0) { updateSky(.4 + skyT); skyT = .4; lights(); const quiet = G.night > .7 ? .4 : SKY.rain > .4 ? .7 : 1; TR.max = TR.cap ? Math.max(2, Math.round(TR.cap * quiet)) : 0; PED.max = PED.cap ? Math.max(1, Math.round(PED.cap * quiet * (SKY.rain > .4 ? .6 : 1))) : 0; /* de noche y con lluvia hay menos gente */ } tickSky(dt); G.fx.update(dt); updateHud(dt);
-  tickWorld(dt); tickStreet(t); if ((lodT -= dt) < 0) { lodT = .5; updateLods(camera.position.x, camera.position.z); }
+  tickWorld(dt); tickStreet(t, camera, scene.fog && scene.fog.color); if ((lodT -= dt) < 0) { lodT = .5; updateLods(camera.position.x, camera.position.z); }
 }
 // ritmo: media móvil del tiempo por fotograma. Si no llega a unos 42 por segundo baja la resolución y, si ni así, la calidad;
 // si luego va sobrado, lo recupera poco a poco. Si recortar no sirve de nada (el freno no es la gráfica: pantalla a 30 Hz, ahorro de energía…)

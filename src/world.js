@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { Vox, mat } from './vox.js';
 import { rng, shade, clamp } from './util.js';
-import { T, initTerrain, gY, mY, normalAt, standY, slopeAt, RISE } from './terrain.js';
+import { T, initTerrain, gY, mY, normalAt, standY, slopeAt, RISE, waterExt } from './terrain.js';
 
 // tipo de vía (etiqueta highway de OpenStreetMap) -> [ancho por defecto, velocidad m/s, acera, apta para coches]
 export const ROAD = {
@@ -16,7 +16,7 @@ export const ROAD = {
 export const roadW = r => r.w || (ROAD[r.t] || ROAD.residential)[0];
 export const SW = 2.2;       // ancho de acera a cada lado
 
-export const W = { map: null, group: null, bounds: null, ext: [], junc: [], jgrid: new Map(), segs: [], grid: new Map(), props: [], pgrid: new Map(), water: [], night: 0, mats: {}, anchors: {}, bld: [], bgrid: new Map(), rsegs: [], rgrid: new Map(), lods: [], knock: [], segY: {}, railDeck: [] };
+export const W = { map: null, group: null, bounds: null, ext: [], junc: [], jgrid: new Map(), segs: [], grid: new Map(), props: [], pgrid: new Map(), water: [], night: 0, mats: {}, anchors: {}, bld: [], bgrid: new Map(), rsegs: [], rgrid: new Map(), lods: [], knock: [], segY: {}, railDeck: [], towers: [] };
 const CELL = 20, key = (cx, cz) => cx * 100003 + cz;
 
 // ---------- geometría a mano
@@ -251,7 +251,7 @@ function addBuilding(ch, b, idx, shops) {
     const H = Math.min(46, Math.max(24, h + 16, h * 2.1)), stone = 0xcfc6b2, v = new Vox(); v.at(e[0], 0, e[1], -ang);
     v.box(0, 0, 0, sd, H, sd, stone, { top: 0x6a6e74 }); v.box(0, H - 4.6, 0, sd + .12, 2.6, sd * .34, 0x2a2e33); v.box(0, H - 4.6, 0, sd * .34, 2.6, sd + .12, 0x2a2e33); v.box(0, H - .5, 0, sd + .5, .5, sd + .5, 0xb9b09c);
     for (let k = 0; k < 6; k++) { const f = 1 - (k + 1) / 7; v.box(0, H + k * sd * .3, 0, sd * f, sd * .3, sd * f, 0x55606a); } v.box(0, H + 6 * sd * .3, 0, .12, 1.6, .12, 0x2a2e33); v.box(0, H + 6 * sd * .3 + 1, 0, .8, .12, .12, 0x2a2e33);
-    v.at(); ch.plain.add(v); }
+    v.at(); ch.plain.add(v); W.towers.push([e[0], e[1]]); }
   plinth = plainK ? shade(fc, .58) : 0; settle();
 }
 
@@ -454,7 +454,9 @@ function terrainMeshes(L, areas, addMesh, bb, mg) {
 function scenery(addMesh) {
   const S = T.S, g = new Geo(true, .16), h = S.h, nx = S.nx, d = S.d, cG = lin(0x86a877), cH = lin(0x7a9a6c), cW = lin(0x4f8791), cU = lin(0x9fa593), vs = new Map();
   const vert = (i, j) => { const n = j * nx + i; let v = vs.get(n); if (v !== undefined) return v; const hl = h[i > 0 ? n - 1 : n], hr = h[i < nx - 1 ? n + 1 : n], hu = h[j > 0 ? n - nx : n], hd = h[j < S.nz - 1 ? n + nx : n], gx = (hr - hl) / (2 * d), gz = (hd - hu) / (2 * d), l = Math.hypot(gx, 1, gz), y = h[n];
-    v = g.v(S.x0 + i * d, y, S.z0 + j * d, -gx / l, 1 / l, -gz / l, y <= .12 ? cW : y < 9 ? cU : y > 120 ? cH : cG); vs.set(n, v); return v; };
+    // agua solo donde el entorno es llano a nivel del mar; en cuanto un vecino sube, es orilla (si no, la ladera sale pintada de agua, como una rampa)
+    const wet = y <= .12 && Math.max(hl, hr, hu, hd) < 1.2, bed = y < -.5;
+    v = g.v(S.x0 + i * d, y, S.z0 + j * d, -gx / l, 1 / l, -gz / l, bed ? cU : wet ? cW : y < 9 ? cU : y > 120 ? cH : cG); vs.set(n, v); return v; };
   for (let j = 0; j < S.nz - 1; j++) for (let i = 0; i < nx - 1; i++) { const x = S.x0 + i * d, z = S.z0 + j * d; if (x >= T.x0 && x + d <= T.x1 && z >= T.z0 && z + d <= T.z1) continue; const a = vert(i, j), b = vert(i + 1, j), c = vert(i + 1, j + 1), e = vert(i, j + 1); g.i.push(a, c, b, a, e, c); }
   // fondo bajo la malla fina: donde se juntan bloques de distinto tamaño puede quedar una rendija de un píxel, y por ella se vería el cielo
   { const K = 4, ni = Math.floor((T.nx - 1) / K), nj = Math.floor((T.nz - 1) / K), tmp = new Float32Array(T.nx * T.nz), mn = new Float32Array((ni + 1) * (nj + 1)), hM = T.hM, cB = lin(0x8c9682);
@@ -528,7 +530,7 @@ export function buildWorld(M, quality) {
     for (let x = x0; x < B[2] + m; x += step) for (let z = z0; z < B[3] + m; z += step) { const cx = x + step / 2, cz = z + step / 2, c = cx > bb[0] - mg && cx < bb[2] + mg && cz > bb[1] - mg && cz < bb[3] + mg ? cu : cg; g.quad(g.v(x, 0, z, 0, 1, 0, c), g.v(x, 0, z + step, 0, 1, 0, c), g.v(x + step, 0, z + step, 0, 1, 0, c), g.v(x + step, 0, z, 0, 1, 0, c)); } }
   // agua: lo que toca el borde del mapa se alarga hasta el horizonte
   { const lim = mg ? [bb[0] - mg - 15, bb[1] - mg - 15, bb[2] + mg + 15, bb[3] + mg + 15] : null, FAR = 2600;
-    (M.water || []).forEach((p0, wi) => { const p = p0.slice(); let far = false; if (lim) for (let k = 0; k < p.length; k += 2) { if (Math.abs(p[k] - lim[0]) < .4) { p[k] -= FAR; far = true; } else if (Math.abs(p[k] - lim[2]) < .4) { p[k] += FAR; far = true; } if (Math.abs(p[k + 1] - lim[1]) < .4) { p[k + 1] -= FAR; far = true; } else if (Math.abs(p[k + 1] - lim[3]) < .4) { p[k + 1] += FAR; far = true; } }
+    (M.water || []).forEach((p0, wi) => { const xw = waterExt(M, p0), p = xw.p, far = xw.far;
       W.water.push({ p, b: bboxOf(p) }); if (!T.on) { polyTiled(L.water.g, p, L.water.y, 0x4f8791, 160); return; }
       area(p0, 'land', 0x5f6c50); polyTiled(L.water.g, p0, (T.level[wi] || 0) + .06, 0x4f8791, 160); if (far) polyTiled(waterFar, p, (T.level[wi] || 0) + .03, 0x4f8791, 160); }); }      /* con relieve: la lámina de agua va plana a su nivel; debajo, el lecho y las orillas en color de ribera */
   (M.green || []).forEach(a => { const gk = GKIND[a.k]; if (!gk) return; area(a.p, gk[0], a.k === 'pitch' ? (SPORT[a.s] || gk[1]) : gk[1]);
@@ -574,7 +576,7 @@ export function buildWorld(M, quality) {
   LAYER.forEach(n => { const ly = L[n]; W.mats['g_' + n] = new THREE.MeshLambertMaterial({ vertexColors: true, map: TEX[n] || null, polygonOffset: ly.i > 0, polygonOffsetFactor: 0, polygonOffsetUnits: -ly.i * 3 }); });
   const addMesh = (geo, n) => { const mesh = new THREE.Mesh(geo, W.mats['g_' + n]); mesh.receiveShadow = n !== 'water'; mesh.matrixAutoUpdate = false; if (T.on) geo.computeBoundingSphere(); else mesh.frustumCulled = false; root.add(mesh); };
   if (T.on) { terrainMeshes(L, areas, addMesh, bb, mg); scenery(addMesh); if (waterFar.nv) splitGeo(waterFar, 960).forEach(q => addMesh(q, 'water')); }
-  LAYER.forEach(n => { const g = L[n].g; if (!g.nv) return; if (!T.on) { addMesh(g.build(), n); return; } if (W.stats) (W.stats.rib || (W.stats.rib = {}))[n] = g.i.length / 3; drape(g, deckMarks); splitGeo(g, 320).forEach(q => addMesh(q, n)); });
+  LAYER.forEach(n => { const g = L[n].g; if (!g.nv) return; if (!T.on) { addMesh(g.build(), n); return; } if (W.stats) (W.stats.rib || (W.stats.rib = {}))[n] = g.i.length / 3; if (n !== 'water') drape(g, deckMarks); splitGeo(g, 320).forEach(q => addMesh(q, n)); });      /* el agua ya va a su cota: drapeada, en las orillas treparía por el talud */
   W.mats.water = W.mats.g_water;
   // huecos de los pasos bajo edificios: se abren en la colisión y se pinta la boca
   portals = new Map(); { const P = M.portals || []; for (let k = 0; k < P.length; k += 6) { const kk = key(Math.floor(P[k] / CELL), Math.floor(P[k + 1] / CELL)); let l = portals.get(kk); if (!l) portals.set(kk, l = []); l.push([P[k], P[k + 1], P[k + 3]]); } }
