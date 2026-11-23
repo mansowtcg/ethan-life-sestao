@@ -112,6 +112,10 @@ function fillList(q) {
   if (q && q.trim().length > 1) { const r = search(q); if (!r.length) { const e = document.createElement('p'); e.textContent = 'No encuentro nada con ese nombre.'; list.appendChild(e); } r.forEach(f => add(f.icon + ' ' + f.n + ' · ' + fmtD(Math.hypot(f.x - G.px, f.z - G.pz)), () => G.setDest({ x: f.x, z: f.z, n: f.n, icon: f.icon }))); return; }
   SP.list.slice().sort((a, b) => Math.hypot(a.x - G.px, a.z - G.pz) - Math.hypot(b.x - G.px, b.z - G.pz)).forEach(sp => add(sp.icon + ' ' + sp.n + ' · ' + fmtD(Math.hypot(sp.x - G.px, sp.z - G.pz)), () => G.setDest({ x: sp.x, z: sp.z, n: sp.n, icon: sp.icon })));
   if (G.car && G.mode === 'foot') add('🚗 Mi coche', () => G.setDest({ x: G.car.x, z: G.car.z, n: 'Tu coche', icon: '🚗' })); if (G.dest && !G.mission) add('✖ Quitar el GPS', () => G.setDest(null));
+  // qué hacer cerca: el más cercano de cada sitio con actividad (los demás se buscan por nombre)
+  { const KIND = [['muelle', 'Pescar en el muelle'], ['bolos', 'Bolos'], ['canasta', 'Cancha de baloncesto'], ['fronton', 'Frontón'], ['campo', 'Partidillo'], ['sport', 'Gimnasio']], d = p => Math.hypot(p.x - G.px, p.z - G.pz);
+    const ll = ST.pois.find(p => p.pitch && /llanas/i.test(p.n || '')); if (ll) add('⚽ Las Llanas (Sestao River) · ' + fmtD(d(ll)), () => G.setDest({ x: ll.x, z: ll.z, n: 'Las Llanas', icon: '⚽' }), 'sub');
+    KIND.forEach(k => { let best = null; ST.pois.forEach(p => { if (p.c === k[0] && (!best || d(p) < d(best))) best = p; }); if (best) add((CAT[k[0]] || CAT.shop)[2] + ' ' + k[1] + ' · ' + fmtD(d(best)), () => G.setDest({ x: best.x, z: best.z, n: best.n, icon: (CAT[k[0]] || CAT.shop)[2] }), 'sub'); }); }
 }
 export function openMap() {
   if (dl || G.title) return; G.busy = true; clearKeys(); $('bigmap').hidden = false; $('banner').hidden = true; const cv = $('bm'), r = cv.getBoundingClientRect(); MV.dpr = Math.min(2, devicePixelRatio || 1); cv.width = Math.max(200, r.width * MV.dpr); cv.height = Math.max(200, r.height * MV.dpr);

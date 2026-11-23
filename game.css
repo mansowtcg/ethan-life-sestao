@@ -82,3 +82,4 @@ button{font:inherit;color:inherit;border:0;cursor:pointer}
 
 .gpf{outline:3px solid #c8dc4a!important;outline-offset:2px;box-shadow:0 0 0 6px #c8dc4a44!important}
 @media (max-width:520px){#lim{right:auto;left:-18px}}
+#bm-list button.sub{opacity:.88;font-size:.92em}

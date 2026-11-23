@@ -118,12 +118,15 @@ export function enterSpot(s) {
 function closed(s, msg) { dialog({ icon: s.icon, title: s.n, text: 'Cerrado. ' + msg, options: [] }); }
 
 // ---------- comercios del mapa: el nombre es el real (OpenStreetMap); lo que se puede hacer dentro es genérico, igual para todos los de su tipo
+const SIESTA = { food: [13.5, 16.5], lottery: [13.5, 16.5], tobacco: [13.5, 16.5], hair: [13.5, 15.5], clothes: [13.5, 16.5], shop: [13.5, 16.5], garage: [13, 15] }, SUNDAY = { food: 0, clothes: 0, shop: 0, hair: 0, garage: 0, lottery: 0, bakery: 'm', tobacco: 'm' };
 const HOURS = { bar: [9, 2], cafe: [7.5, 21], rest: [13, 23.5], fast: [12, 1], bakery: [7, 20.5], super: [9, 21.5], food: [9, 20.5], pharm: [9, 21], lottery: [9, 20.5], tobacco: [8.5, 20.5], hair: [9.5, 20], clothes: [10, 20.5], shop: [10, 20.5], garage: [8, 19] };
 const hh = h => Math.floor(h) + ':' + (h % 1 ? '30' : '00');
 export function enterPoi(p) {
   const S = G.S, c = CAT[p.c] || CAT.shop, re = () => enterPoi(p), hrs = HOURS[p.c], buy = (cost, f) => () => { if (S.money < cost) { toast('No te llega el dinero.', '💸'); sfx('bad'); return; } if (cost) money(-cost); f(); re(); };
   sfx('ui'); S.stats.pois = S.stats.pois || {}; if (!S.stats.pois[p.n]) { S.stats.pois[p.n] = 1; }
-  if (hrs && !openAt(hrs[0], hrs[1])) return dialog({ icon: c[2], title: p.n, text: c[1] + ' · Cerrado. Abre de ' + hh(hrs[0]) + ' a ' + hh(hrs[1]) + '.', options: [] });
+  // horario a la española: el comercio pequeño cierra a mediodía y el domingo; la panadería y el estanco, el domingo solo por la mañana
+  if (hrs) { const h = S.min / 60, sun = wd(S) === 6, sp = SIESTA[p.c], su = SUNDAY[p.c], shut = (sun && su === 0) || (sun && su === 'm' && h >= 14) || (sp && !sun && h >= sp[0] && h < sp[1]) || !openAt(hrs[0], hrs[1]);
+    if (shut) return dialog({ icon: c[2], title: p.n, text: c[1] + ' · Cerrado. ' + (sun && su === 0 ? 'Los domingos no abre. ' : sun && su === 'm' ? 'Los domingos, solo por la mañana. ' : '') + 'Abre de ' + hh(hrs[0]) + (sp ? ' a ' + hh(sp[0]) + ' y de ' + hh(sp[1]) : '') + ' a ' + hh(hrs[1]) + '.', options: [] }); }
   const near = G.car && Math.hypot(G.car.x - p.x, G.car.z - p.z) < 16, o = [];
   if (p.c === 'bar' || p.c === 'cafe') o.push({ t: 'Café', d: 'Espabila un rato', tag: eur(1.5), f: buy(1.5, () => { feed(0, 9); pass(5); toast('Un café.', '☕'); }) }, { t: 'Pintxo', d: 'El que quede en la barra', tag: eur(2.5), f: buy(2.5, () => { feed(18, 0); pass(8); toast('Un pintxo.', '🍢'); }) }, { t: 'Refresco', d: 'Con hielo', tag: eur(2), f: buy(2, () => { feed(3, 6); pass(5); toast('Un refresco.', '🥤'); }) });
   if (p.c === 'bar' || p.c === 'cafe') barFun(p, o, buy, re);
