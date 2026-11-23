@@ -166,6 +166,18 @@ function addBuilding(ch, b, idx, shops) {
   const settle = () => { if (T.on) [ch.wall, ch.base, ch.plain, ch.glass].forEach((g, i) => { for (let v = mk[i]; v < g.nv; v++) g.p[v * 3 + 1] += yb; });
     if (T.on && plinth) { const pc = lin(plinth); for (let k = 0; k < n; k++) { const A = ring[k], B = ring[(k + 1) % n], dx = B[0] - A[0], dz = B[1] - A[1], l = Math.hypot(dx, dz); if (l < .05) continue; const lo = Math.min(gH[k], gH[(k + 1) % n]) - .7; if (yb - lo > .1) ch.plain.wall(A[0], A[1], B[0], B[1], lo, yb, dz / l, -dx / l, pc); } }
     b.y0 = yb; W.bld.push({ p: flat, b: bboxOf(flat), h, k: kind, i: idx, y0: yb }); };
+  if (kind === 'stand' && n <= 12) { // gradas: escalones que suben de cara al campo más cercano, muro detrás y, si es larga, cubierta
+    let cx = 0, cz = 0; ring.forEach(q => { cx += q[0] / n; cz += q[1] / n; }); let SA = 0, SB = 0, SC = 0; ring.forEach(q => { const dx = q[0] - cx, dz = q[1] - cz; SA += dx * dx; SB += dz * dz; SC += dx * dz; });
+    const t = .5 * Math.atan2(2 * SC, SA - SB), ux = Math.cos(t), uz = Math.sin(t); let u0 = 1e9, u1 = -1e9, v0 = 1e9, v1 = -1e9; ring.forEach(q => { const dx = q[0] - cx, dz = q[1] - cz, u = dx * ux + dz * uz, v = -dx * uz + dz * ux; u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); });
+    let best = null, bd = 140; (W.map.green || []).forEach(gq => { if (gq.k !== 'pitch') return; let px = 0, pz = 0; const m = gq.p.length / 2; for (let k = 0; k < m; k++) { px += gq.p[k * 2] / m; pz += gq.p[k * 2 + 1] / m; } const d = Math.hypot(px - cx, pz - cz); if (d < bd) { bd = d; best = [px, pz]; } });
+    const sd = best ? Math.sign(-(best[0] - cx) * uz + (best[1] - cz) * ux) || 1 : 1, vf = sd > 0 ? v1 : v0, depth = v1 - v0, rows = Math.max(3, Math.min(16, Math.round(depth / .85))), dv = depth / rows, H = Math.max(3, h), rise = (H - 1.3) / rows;
+    const v = new Vox(); v.at(cx, 0, cz, -t); const CON = 0xb9b3a6, SEAT = [0x2e6b4a, 0x26262c];
+    v.bx(u0, -2, vf - sd * .2, u1, .9, vf, 0xa49c8c);      // murete delante de la primera fila
+    for (let i = 0; i < rows; i++) { const va = vf - sd * i * dv, vb = vf - sd * (i + 1) * dv, y = .9 + (i + 1) * rise; v.bx(u0, -2, va, u1, y, vb, CON); v.bx(u0 + .3, y, va - sd * dv * .25, u1 - .3, y + .38, va - sd * dv * .62, SEAT[i % 2]); }
+    const vb = vf - sd * depth; v.bx(u0, -2, vb, u1, H + .5, vb - sd * .3, 0x9d978a); [u0, u1].forEach(uu => v.bx(uu - .15 * Math.sign(uu), -2, vf, uu + .15 * Math.sign(uu), H + .5, vb, 0x9d978a));
+    if (u1 - u0 > 28) { const yr = H + 3.2; v.bx(u0 - .3, yr, vf + sd * .6, u1 + .3, yr + .35, vb - sd * .3, 0x55606a, { bot: 0x3a3f46 }); for (let uu = u0 + 1; uu < u1; uu += 8) { v.bx(uu - .15, H, vb - sd * .05, uu + .15, yr, vb - sd * .35, 0x3a3f46); v.bx(uu - .1, .9 + rows * rise * .5, vf - sd * depth * .5 - .1, uu + .1, yr, vf - sd * depth * .5 + .1, 0x3a3f46); } }
+    v.at(); ch.plain.add(v); for (let k = 0; k < n; k++) { const A = ring[k], B = ring[(k + 1) % n]; addWall(A[0], A[1], B[0], B[1], yb + H); }
+    plinth = 0; settle(); return; }
   if (kind === 'roof') { // cubiertas abiertas (se pasa por debajo): losa, templete, pérgola, chapa a dos aguas o cristal con estructura de acero
     let cx = 0, cz = 0; ring.forEach(q => { cx += q[0] / n; cz += q[1] / n; }); const rf = b.rf, g = ch.plain, posts = [];
     // caja orientada según el lado más largo: sirve para las dos aguas y para repartir pilares y vigas

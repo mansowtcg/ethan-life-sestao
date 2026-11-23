@@ -3,11 +3,12 @@ import * as THREE from 'three';
 import { G } from './state.js';
 import { clearKeys } from './input.js';
 import { GR, nearestEdge } from './graph.js';
-import { W, ROAD } from './world.js';
+import { W, ROAD, roadNear } from './world.js';
 import { SP } from './spots.js';
 import { ST, CAT } from './street.js';
 import { drawTiles, levelFor, MAPCOL } from './mapdraw.js';
 import { P } from './player.js';
+let lim = 0, limT = 0;
 
 const $ = id => document.getElementById(id), DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 let lastSt = null, mctx, mmT = 0, hudT = 0, dl = null, labels = new Map(), bannerT = 0; const v3 = new THREE.Vector3();
@@ -141,7 +142,10 @@ export function updateHud(dt) {
     { const t = S.day * 1440 + S.min, B = (S.buffs || []).filter(b => b.u > t), h = B.map(b => b.ic + '×' + String(b.x).replace('.', ',') + ' ' + Math.max(1, Math.ceil((b.u - t) / 60)) + 'h').join('|'), e = $('buffs'); if (e && e.dataset.h !== h) { e.dataset.h = h; e.innerHTML = ''; B.forEach(b => { const s = document.createElement('span'); s.className = b.x < 1 ? 'bad' : ''; s.title = b.n; s.textContent = b.ic + ' ×' + String(b.x).replace('.', ',') + ' · ' + Math.max(1, Math.ceil((b.u - t) / 60)) + ' h'; e.appendChild(s); }); e.hidden = !B.length; } }
     const ne = nearestEdge(G.px, G.pz, false, 60), st = ne.e >= 0 && ne.d < 25 && ne.road.n ? ne.road.n : W.map.name; { const e = $('street'), mw = $('mini').offsetWidth, key = st + '|' + mw; if (key !== lastSt && mw) { lastSt = key; e.textContent = st; /* centrada bajo el minimapa; si no cabe, crece hacia la derecha en vez de salirse de la pantalla */ e.style.transform = 'translateX(' + -Math.min(e.offsetWidth / 2, mw / 2) + 'px)'; } }
     $('p-b').textContent = G.dr ? 'Subir' : G.mode === 'car' ? 'Freno' : 'Correr'; $('p-b').dataset.btn = G.mode === 'car' && !G.dr ? 'hb' : 'run'; $('p-car').textContent = G.dr ? '⬇' : '🚗'; }
-  const inCar = G.mode === 'car'; $('speed').hidden = !inCar; if (inCar) $('speed').firstElementChild.textContent = Math.round(Math.abs(G.car.vf) * 3.6);
+  const inCar = G.mode === 'car'; $('speed').hidden = !inCar; if (inCar) { const kmh = Math.round(Math.abs(G.car.vf) * 3.6); $('speed').firstElementChild.textContent = kmh;
+    // la velocidad máxima de la calle: la del mapa si la trae; si no, la general en ciudad (30 con un carril por sentido, 50 en las avenidas de dos, 20 en las de prioridad peatonal)
+    if ((limT -= 1) <= 0) { limT = 10; const rn = roadNear(G.car.x, G.car.z, 6, true), r = rn.r && rn.d < 1.5 ? rn.r : null; lim = !r ? 0 : r.lim || (r.t === 'living_street' || r.t === 'service' || r.t === 'track' ? 20 : /^(motorway|trunk|primary)/.test(r.t) || (/^secondary/.test(r.t) && (r.l || 0) >= (r.o ? 2 : 4)) ? 50 : 30); const el = $('lim'); if (el) { el.hidden = !lim; if (lim) el.textContent = lim; } }
+    $('speed').classList.toggle('over', !!lim && kmh > lim + 5); }
   // carteles sobre los sitios cercanos
   const cam = G.camera, w = innerWidth, h = innerHeight;
   SP.list.forEach(sp => { let el = labels.get(sp.id); const show = sp.dist < 70 && sp.dist > 4.5 && !G.busy;

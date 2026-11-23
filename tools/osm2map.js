@@ -152,7 +152,7 @@ hw.forEach(w => {
   const t = w.tags.highway, tg = w.tags, p = pts(w); if (p.length < 2) return; const drv = HW[t];
   const one = tg.oneway === 'yes' || tg.oneway === '1' || tg.oneway === 'true' || tg.oneway === '-1' || tg.junction === 'roundabout' || tg.junction === 'circular' || (t === 'motorway' && tg.oneway !== 'no') || (/_link$/.test(t) && tg.oneway !== 'no' && tg.oneway !== undefined);
   const wd = roadWidth(t, tg, one), name = tg.name || (drv ? tg.ref : undefined), tun = isTun(tg) || tg.covered === 'yes', rev = tg.oneway === '-1';
-  const base = { t, w: wd, w0: wd }; if (num(tg.width) >= 1.5) base.wTag = 1; if (name) base.n = name; if (one && drv) base.o = 1; if (tg.bridge && tg.bridge !== 'no') base.b = 1; if (tun) base.u = 1; const ms = num(tg.maxspeed); if (ms >= 5 && drv) base.v = ms;
+  const base = { t, w: wd, w0: wd }; if (num(tg.width) >= 1.5) base.wTag = 1; if (name) base.n = name; if (one && drv) base.o = 1; if (tg.bridge && tg.bridge !== 'no') base.b = 1; { const ms = parseInt(tg.maxspeed, 10); if (drv && ms >= 5 && ms <= 130) base.lim = ms; } if (tun) base.u = 1; const ms = num(tg.maxspeed); if (ms >= 5 && drv) base.v = ms;
   if (tg.conveying && tg.conveying !== 'no' && tg.indoor !== 'yes' && !tun && !(num(tg.layer) < 0)) base.cv = tg.conveying === 'backward' ? -1 : tg.conveying === 'forward' ? 1 : String(tg.incline || '') === 'down' ? -1 : 1;      /* rampas y escaleras mecánicas al aire libre: hacia dónde va la cinta respecto al dibujo */
   if (t === 'steps' || base.cv) { const ic = String(tg.incline || ''), sc = num(tg.step_count); if (/^up$|^\+?\d/.test(ic)) base.inc = 1; else if (/^down$|^-\d/.test(ic)) base.inc = -1; if (sc >= 2 && sc < 400) base.sc = sc; if (tg.handrail === 'no') base.hr = 0; }      /* escaleras: hacia dónde suben, cuántos peldaños y si llevan pasamanos */
   if (/^(private|no|customers|delivery)$/.test(tg.access || '') || /^(private|no)$/.test(tg.motor_vehicle || '')) base.pr = 1; if (t === 'service' && tg.service) base.s = tg.service === 'parking_aisle' ? 'pa' : tg.service === 'driveway' ? 'dw' : tg.service === 'alley' ? 'al' : undefined;
@@ -463,7 +463,7 @@ indexBuildings();
   let dead = 0; R.forEach(r => { if (!DRV(r) || r.iso) return; if (r.p.some(q => !core[id.get(nkey(q))])) { r.dead = 1; dead += lenOf(r.p); } });
   console.log('  sin ida y vuelta (salidas del mapa y sentidos únicos sin retorno): ' + (dead / 1000).toFixed(1) + ' km');
 })();
-R.forEach(r => { const o = { t: r.t, p: flat(r.p), w: r.w }; ['n', 'ne', 'o', 'b', 'u', 'v', 'pr', 's', 'l', 'rb', 'ns', 'iso', 'dead', 'inc', 'sc', 'hr', 'cv'].forEach(k => { if (r[k] !== undefined) o[k] = r[k]; }); if (r.pkl) o.pl = r.pkl; if (r.pkr) o.pr2 = r.pkr; r.out = o; M.roads.push(o); });
+R.forEach(r => { const o = { t: r.t, p: flat(r.p), w: r.w }; ['n', 'ne', 'o', 'b', 'u', 'v', 'pr', 's', 'l', 'rb', 'ns', 'iso', 'dead', 'inc', 'sc', 'hr', 'cv', 'lim'].forEach(k => { if (r[k] !== undefined) o[k] = r[k]; }); if (r.pkl) o.pl = r.pkl; if (r.pkr) o.pr2 = r.pkr; r.out = o; M.roads.push(o); });
 crossTmp.forEach(c => { if (R.indexOf(c.road) < 0 || bldAt(c.x, c.z) >= 0) return; M.cross.push(c.x, c.z, r2(c.a), c.road.w, c.sig ? 1 : 0); });
 M.calm = []; calmTmp.forEach(c => { if (R.indexOf(c.road) < 0 || bldAt(c.x, c.z) >= 0) return; M.calm.push(c.x, c.z, r2(c.a), c.road.w, c.k); });
 signTmp.forEach(c => { if (R.indexOf(c.road) < 0) return; M.signs.push(c.x, c.z, r2(c.a), c.road.w, c.k); });

@@ -4,6 +4,11 @@ La vida de Ethan, el del Tycoon, día a día y en 3D: te levantas, fichas en el 
 
 **Jugar: https://mansowtcg.github.io/ethan-life-sestao/**
 
+| | |
+|---|---|
+| ![Boca de metro con su fosterito](img/metro-fosterito.jpg) | ![Las Llanas, con sus gradas verdinegras](img/las-llanas.jpg) |
+| ![Concierto de los Sampedros en el Kasko](img/sampedros-kasko.jpg) | ![Sestao desde el aire, con el Serantes al fondo](img/sestao-serantes.jpg) |
+
 ## Jugar
 
 Abre la página publicada (o `index.html` servido desde cualquier servidor web). En ordenador: WASD para moverse, Mayús para correr, E para todo lo demás, F para subir y bajar del coche, Espacio para el freno de mano, V para cambiar entre tercera y primera persona, G para la vista de dron, M para el mapa, T para el móvil y R para la **cámara rápida**. En el móvil: palanca a la izquierda, botones a la derecha y se arrastra para mirar. En la portada se elige si se juega **online o en local**.
@@ -36,7 +41,9 @@ En la portada se elige **Online** o **Local** (se recuerda para la próxima vez,
 
 - **Sestao a escala real**, sacado de OpenStreetMap: calles con su nombre y su sentido, edificios (con sus patios interiores, y la acera con su bordillo), la ría, el Galindo y el Ballonti, parques, campos de deporte, vías del tren, árboles, pasos de cebra, señales, semáforos, paradas de autobús, bancos y fuentes donde están en el mapa. El Horno Alto tiene su propia maqueta.
 - **Relieve de verdad**: el pueblo sube desde la ría hasta lo alto con las alturas del modelo del terreno del IGN. Las calles tienen su cuesta (el coche la nota al subir, al bajar y al aparcar, y Ethan anda más despacio cuesta arriba), las escaleras son escaleras con su pasamanos (y suben hacia donde dice el mapa, con su número de peldaños cuando lo trae), las **rampas y escaleras mecánicas** al aire libre funcionan (te llevan cuesta arriba con su marquesina), los **ascensores públicos** suben y bajan de un nivel a otro con E, los ríos y la ría van planos a su nivel entre sus orillas (y la ría sigue más allá del mapa), los muros, vallas, setos y muros de contención del mapa están donde están (y no se atraviesan), las iglesias tienen su campanario, las calles que van en alto sobre un terraplén, un muro, la ribera u otra calle llevan barandilla en el borde de la acera o bionda (quitamiedos) al borde del arcén, cortadas en las bocas de las calles y caminos que entran (y no dejan caerse), los puentes y pasarelas van en alto con sus pilares y barandillas, el metro cruza el Galindo por su viaducto y el tren entra en el monte por sus bocas de túnel. El mapa lleva curvas de nivel cada 10 m y, junto al nombre del barrio, sale la altitud a la que está Ethan. Cuesta arriba el coche gasta más.
+- **Las Llanas** con sus gradas verdinegras escalonadas y cubiertas (y las demás gradas del mapa, también con escalones).
 - **Campos de deporte con sus líneas**: porterías en los de fútbol, fútbol sala y balonmano, canastas en los de baloncesto y red en los de tenis.
+- **Límite de velocidad** de cada calle junto al velocímetro, con su señal a la entrada de las calles que lo traen en el mapa (224 tramos; en el resto, el general en ciudad: 30 con un carril por sentido, 50 en las avenidas, 20 en las calles de prioridad peatonal). Si te pasas, el número se pone en rojo.
 - **Badenes y pasos de cebra elevados** donde los pone el mapa (60): el coche cabecea al pasarlos y, por encima de 30 km/h, la suspensión lo nota.
 - **Placas con el nombre de la calle** en las esquinas (en la fachada, o en un poste si no hay pared), **huertas** con sus parcelas de lechugas y tomateras, y **muros de piedra** donde la calle va metida en la ladera o colgada sobre ella.
 - **Comercios del mapa** con su rótulo en la fachada. Se entra con E: bares, restaurantes, panaderías, supermercados, farmacias, estancos, loterías, gasolineras… Lo que se puede hacer dentro es genérico, igual para todos los de su tipo.

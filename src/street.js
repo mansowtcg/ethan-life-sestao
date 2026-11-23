@@ -108,6 +108,15 @@ export function buildStreet(M, root, q) {
     const pv = new Vox(); pv.box(0, 0, 0, .09, 2.7, .09, 0x3a3f46); pv.box(0, 2.1, 0, .5, .6, .08, 0xd0322e); voxText(pv, 'BUS', 0, 2.28, .05, .034, .02, 0xffffff, { center: true });
     const pr = instChunks(root, pv.geometry(), lit, pole, { far: 130 * far }); pole.forEach((t, i) => soft(t[0], t[1], .12, 'sign', [pr[i]])); }
 
+  // ---------- señales de velocidad máxima al entrar en las calles que la traen en el mapa (la mayoría, zona 30)
+  { const byV = new Map(); let nS = 0; const put = (x0, z0, ux, uz, w, v) => { const x = x0 + ux * 7 - uz * (w / 2 + .7), z = z0 + uz * 7 + ux * (w / 2 + .7); if (inBuilding(x, z) || inWaterPoly(x, z) || roadNear(x, z, 8, true).d < .25 || collide(x, z, .3, true).hit || nearJunc(x, z, 2)) return; let l = byV.get(v); if (!l) byV.set(v, l = []); l.push([x, z, Math.atan2(ux, uz) + Math.PI]); nS++; };
+    M.roads.forEach(r => { if (!r.lim || r.b || r.u || nS > 260) return; const p = r.p, n = p.length / 2; let L = 0; for (let k = 0; k + 3 < p.length; k += 2) L += Math.hypot(p[k + 2] - p[k], p[k + 3] - p[k + 1]); if (L < 45) return;
+      const d0 = Math.hypot(p[2] - p[0], p[3] - p[1]) || 1; if (nearJunc(p[0], p[1], 3)) put(p[0], p[1], (p[2] - p[0]) / d0, (p[3] - p[1]) / d0, r.w, r.lim);
+      if (!r.o) { const a = n - 1, b = n - 2, d1 = Math.hypot(p[b * 2] - p[a * 2], p[b * 2 + 1] - p[a * 2 + 1]) || 1; if (nearJunc(p[a * 2], p[a * 2 + 1], 3)) put(p[a * 2], p[a * 2 + 1], (p[b * 2] - p[a * 2]) / d1, (p[b * 2 + 1] - p[a * 2 + 1]) / d1, r.w, r.lim); } });
+    byV.forEach((l, v) => { const sv = new Vox(); sv.box(0, 0, 0, .07, 2.1, .07, 0x9aa0a8); sv.box(0, 2.05, .03, .62, .62, .05, 0xc8281e); sv.box(0, 2.0, .03, .42, .72, .05, 0xc8281e); sv.box(0, 2.15, .03, .72, .42, .05, 0xc8281e);
+      sv.box(0, 2.13, .045, .46, .46, .05, 0xf6f4ee); sv.box(0, 2.06, .045, .32, .6, .05, 0xf6f4ee); sv.box(0, 2.2, .045, .6, .32, .05, 0xf6f4ee); voxText(sv, String(v), 0, 2.27, .075, .045, .02, 0x1a1a1a, { center: true });
+      const refs = instChunks(root, sv.geometry(), lit, l, { far: 120 * far }); l.forEach((t, i) => soft(t[0], t[1], .12, 'sign', [refs[i]])); }); ST.limSigns = nS; }
+
   // ---------- señales de stop y ceda, a la derecha de quien llega
   { const stop = [], give = [], S = M.signs || []; for (let k = 0; k < S.length; k += 5) { const a = S[k + 2], ux = Math.sin(a), uz = Math.cos(a); let ok = false, x, z; for (const m of [.75, .35]) { x = S[k] - uz * (S[k + 3] / 2 + m); z = S[k + 1] + ux * (S[k + 3] / 2 + m); if (!inBuilding(x, z) && !inWaterPoly(x, z) && roadNear(x, z, 8, true).d > .2 && !collide(x, z, .3, true).hit) { ok = true; break; } } if (ok) (S[k + 4] ? give : stop).push([x, z, a + Math.PI]); }
     const sv = new Vox(); sv.box(0, 0, 0, .07, 2.1, .07, 0x9aa0a8); sv.box(0, 2.05, .03, .62, .62, .05, 0xc8281e); sv.box(0, 2.0, .03, .42, .72, .05, 0xc8281e); sv.box(0, 2.15, .03, .72, .42, .05, 0xc8281e); voxText(sv, 'STOP', 0, 2.26, .07, .028, .02, 0xffffff, { center: true });

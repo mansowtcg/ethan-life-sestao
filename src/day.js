@@ -225,6 +225,12 @@ export function openAgenda(back) {
   const OF = offers(S); L.push(OF.length ? 'Te han propuesto ' + OF.length + (OF.length === 1 ? ' plan' : ' planes') + ' para hoy.' : 'Hoy nadie ha propuesto nada.'); const bp = bigPark(), ck = S.park && S.park.k;
   L.push('Coche: ' + (ck === 'ok' ? (S.park.big ? 'en el parking grande.' : 'aparcado en tu zona.') : ck === 'bad' ? 'mal aparcado (' + S.park.why + ').' : ck === 'far' ? 'aparcado fuera de tu zona.' : 'sin aparcar.') + (bp ? ' El parking grande queda a ' + Math.round(dHome(bp.x, bp.z)) + ' m de casa.' : ''));
   L.push('ITV: ' + (S.itv <= S.day ? 'te toca ya.' : 'el día 15 (faltan ' + (S.itv - S.day) + ' días).'));
+  // lo que hay por Sestao estos días (todo lo que se puede hacer entre medias, para no tener que acordarse)
+  { const d = wd(S), dy = (S.day - 1) % 360 + 1, wk = Math.floor((S.day - 1) / 7), E = [];
+    if (dy >= 19 && dy <= 29) E.push('Sampedros: concierto en el Kasko a las 22:00 y txosnas en Las Canteras'); else if (dy >= 12 && dy < 19) E.push('los Sampedros empiezan el día 19');
+    if (d === 3 || d === 4) E.push('pintxo-pote esta tarde'); else if (d < 3) E.push('pintxo-pote el jueves y el viernes');
+    if (d >= 5) E.push('el Athletic juega por la tarde'); if (wk % 2 === 0) E.push('el domingo el River juega en Las Llanas a las 12:00');
+    E.push('la lonja abre ' + (d >= 5 ? 'desde mediodía' : 'por la tarde')); L.push('Por Sestao: ' + E.join('; ') + '.'); }
   const B = buffs().map(b => ({ t: b.ic + ' ' + b.n, d: '×' + String(b.x).replace('.', ',') + ' ' + KD[b.k], tag: Math.max(1, Math.ceil((b.u - t) / 60)) + ' h', dis: true, f: () => { } }));
   const N = (S.daily.notes || []).slice(-4).reverse().map(n => ({ t: n[0] + ' ' + n[1], d: n[2], tag: hm(n[3] || 0), dis: true, f: () => { } }));
   dialog({ icon: '🗓️', title: WDAY[wd(S)] + ' ' + dom(S) + ' · ' + hm(S.min), text: L.join(' ') + ' Momentos del Tycoon vividos: ' + Object.keys(S.mom || {}).length + ' de ' + Object.keys(EVN).length + '.', close: back ? 'Volver' : 'Cerrar', onClose: back || null, options: [{ t: '🗓️ Plan de hoy', d: OF.length ? 'A qué te apuntas y de qué pasas' : 'Nada propuesto', tag: OF.length ? String(OF.length) : '', dis: !OF.length, f: () => openPlan(() => openAgenda(back)) }].concat(bp ? [{ t: '🅿️ GPS al parking grande', d: 'Donde acaba el coche cuando no hay sitio en tu zona', f: () => { closeDialog(); G.setDest({ x: bp.x, z: bp.z, n: 'Parking grande', icon: '🅿️', in: 1 }); } }] : [], B, N) });
