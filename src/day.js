@@ -162,8 +162,8 @@ function parkTick(S, dt) {
     if (PS.curT <= 0 && d > 16) { stealSlot(PS.cur); PS.cur = null; PS.fails++; PS.next = PS.t + 30 + Math.random() * 30; lastK = ''; toast(say3(['Llegó otro antes. Hueco perdido.', 'Te lo han quitado delante de las narices.', 'Uno con un Ibiza se te ha adelantado.']), '😤'); sfx('horn'); } }
   else if (PS.t >= PS.next && PS.opens < 6) { const sl = openSlot(car.x, car.z, 50, 190); PS.next = PS.t + 25;
     if (sl) { const d = Math.hypot(sl.x - car.x, sl.z - car.z); PS.cur = sl; PS.opens++; const rt = routeTo(car.x, car.z, sl.x, sl.z, false); let L = d * 1.4; PS.reach = 0; if (rt && rt.nodes && rt.nodes.length > 1) { L = 0; for (let k = 1; k < rt.nodes.length; k++) { L += Math.hypot(GR.x[rt.nodes[k]] - GR.x[rt.nodes[k - 1]], GR.z[rt.nodes[k]] - GR.z[rt.nodes[k - 1]]); PS.reach = Math.max(PS.reach, dHome(GR.x[rt.nodes[k]], GR.z[rt.nodes[k]])); } L = Math.max(L, d); }
-      PS.curT = Math.min(100, 20 + Math.random() * 10 + L / 5.5);      /* tiempo para llegar por donde manda el GPS: justo, pero se llega si no te equivocas de calle */ lastK = ''; toast('¡Se va uno! Hueco en ' + stName(sl) + ', a ' + Math.round(d) + ' m. Corre, que vuela.', '🅿️'); sfx('ok'); } }
-  if (!PS.rob && PS.t > 150) { PS.rob = true; S.ev = S.ev || {}; if (S.day - (S.ev.robo || -99) >= 14 && S.money >= 20 && !G.mission && Math.random() < .2) { S.ev.robo = S.day; G.startMission('robo'); } }
+      PS.curT = Math.min(125, 20 + Math.random() * 10 + L / 5.5);      /* tiempo para llegar por donde manda el GPS: justo, pero se llega si no te equivocas de calle (con dirección prohibida la vuelta puede ser de 800 m) */ lastK = ''; toast('¡Se va uno! Hueco en ' + stName(sl) + ', a ' + Math.round(d) + ' m. Corre, que vuela.', '🅿️'); sfx('ok'); } }
+  if (!PS.rob && PS.t > 150) { PS.rob = true; S.ev = S.ev || {}; if (!S.noEv && S.day - (S.ev.robo || -99) >= 14 && S.money >= 20 && !G.mission && Math.random() < .2) { S.ev.robo = S.day; G.startMission('robo'); } }
   return true;
 }
 const say3 = L => L[Math.floor(Math.random() * L.length)];
