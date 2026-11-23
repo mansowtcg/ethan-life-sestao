@@ -4,7 +4,8 @@ import { G, dampAng, angDiff } from './state.js';
 import { I, initInput, poll } from './input.js';
 import { roadNear, W, extend, buildWorld, collide, inWaterPoly, wallBetween, roadW, knockProp, clampWorld, tickWorld, updateLods, tubeAt } from './world.js';
 import { initSky, updateSky, tickSky, setFogBase, SKY } from './sky.js';
-import { buildStreet, tickStreet, poiAt, transitAt, busAt, ST, CAT } from './street.js';
+import { buildStreet, tickStreet, poiAt, transitAt, busAt, calmH, ST, CAT } from './street.js';
+import { buildFiestas, tickFiestas, fiestaAt } from './fiestas.js';
 import { initTrains, updateTrains, trainHit, TRN } from './trains.js';
 import { mat } from './vox.js';
 import { GR, buildGraph, nearestEdge, nearestNode, route, routeTo, laneOffset } from './graph.js';
@@ -12,7 +13,7 @@ import { P, initPlayer, updateFoot, onBridge } from './player.js';
 import { Car, TR, PK, updateTraffic, buildParked } from './car.js';
 import { SP, placeSpots, updateSpots, spotAt, nearSpot } from './spots.js';
 import { initHud, updateHud, toast, banner, setPrompt, hudKey, openMap, fade } from './hud.js';
-import { newGame, loadGame, saveGame, tickLife, tickRadio, enterSpot, enterPoi, enterTransit, enterBus, openPhone, money } from './life.js';
+import { newGame, loadGame, saveGame, tickLife, tickRadio, enterSpot, enterPoi, enterTransit, enterBus, enterFiesta, openPhone, money } from './life.js';
 import { initPeds, updatePeds, PED } from './peds.js';
 import { updateMission } from './missions.js';
 import { tickDay, onLeaveCar, morning, resetDay, parkDbg, bigPark, carOK, offers } from './day.js';
@@ -46,7 +47,7 @@ function boot() {
   sun = G.sun = new THREE.DirectionalLight(0xfff0d8, 2.7); sun.castShadow = true; const sc = sun.shadow.camera; sc.left = -70; sc.right = 70; sc.top = 70; sc.bottom = -70; sc.near = 10; sc.far = 340; sun.shadow.bias = -.0006; sun.shadow.normalBias = .04; scene.add(sun, sun.target);
   initSky(scene, camera, sun, hemi, q);
   // mundo: mapa + ampliación inventada (polígono), calles, sitios y coches aparcados
-  const tb0 = performance.now(); extend(M); scene.add(buildWorld(M, q)); G.worldMs = Math.round(performance.now() - tb0); buildGraph(M.roads); buildStreet(M, W.group, q); initTrains(M, W.group, { lit: mat('lit') }); placeSpots(scene, M); buildParked(W.group, M, (x, z) => nearSpot(x, z, 10), q); initPark(W.group);
+  const tb0 = performance.now(); extend(M); scene.add(buildWorld(M, q)); G.worldMs = Math.round(performance.now() - tb0); buildGraph(M.roads); buildStreet(M, W.group, q); buildFiestas(M, W.group); initTrains(M, W.group, { lit: mat('lit') }); placeSpots(scene, M); buildParked(W.group, M, (x, z) => nearSpot(x, z, 10), q); initPark(W.group);
   G.mapId = (M.src || '') + ':' + M.bbox.map(Math.round).join(',');
   G.fx = new FX(scene, 220); initPlayer(scene); car = G.car = new Car('c4'); scene.add(car.g); initPeds(scene, 12);
   head = new THREE.SpotLight(0xfff2cc, 0, 60, .6, .7, 1.5); head.position.set(0, .9, 1.6); head.target.position.set(0, 0, 14); car.g.add(head, head.target); head.visible = true;
@@ -117,7 +118,7 @@ G.slow = () => { if ((G.speed || 1) > 1) G.setSpeed(1); };
 const carDist = () => Math.hypot(car.x - P.x, car.z - P.z);
 function action() {
   const s = spotAt(G.px, G.pz, G.mode === 'car'); if (s) { if (G.mode === 'car' && Math.abs(car.vf) > 3) { toast('Para el coche primero.', '🛑'); return; } car.vx = car.vz = 0; enterSpot(s); return; }
-  if (G.mode === 'foot') { const p = poiAt(P.x, P.z); if (p) { enterPoi(p); return; } const tr = transitAt(P.x, P.z); if (tr) { enterTransit(tr); return; } const bs = busAt(P.x, P.z); if (bs && carDist() >= 3.8) { enterBus(bs); return; } if (carDist() < 3.8) enterCar(); }
+  if (G.mode === 'foot') { const fz = fiestaAt(P.x, P.z); if (fz) { enterFiesta(fz); return; } const p = poiAt(P.x, P.z); if (p) { enterPoi(p); return; } const tr = transitAt(P.x, P.z); if (tr) { enterTransit(tr); return; } const bs = busAt(P.x, P.z); if (bs && carDist() >= 3.8) { enterBus(bs); return; } if (carDist() < 3.8) enterCar(); }
 }
 function enterCar(force) { if (G.mode === 'car' || (!force && carDist() > 3.8)) return; G.mode = 'car'; P.ethan.root.visible = false; sfx('door'); G.cam.manual = 0; }
 function leaveCar(force) {
@@ -142,6 +143,8 @@ function drive(dt) {
   for (const c of TR.list) { if (Math.abs(c.y - car.y) > 2.4) continue; const L = c.info.L > 5 ? [-2.5, 0, 2.5] : [0], s2 = Math.sin(c.yaw), c2 = Math.cos(c.yaw); for (const o of L) { const i2 = car.bump(c.x + s2 * o, c.z + c2 * o, 1.15); if (i2 > 0) { c.bumpT = 1.8; if (i2 > 3 && !c.honk) { c.honk = 1; sfx('horn'); if (Math.random() < .5) toast(['«¡Mira por dónde vas!»', '«¿Te han dado el carnet en una tómbola?»', '«¡Que es de mi cuñado!»'][Math.floor(Math.random() * 3)], '🚗'); } imp = Math.max(imp, i2); } } }
   { const ti = trainHit(car, null); if (ti > 0) { imp = Math.max(imp, ti); if (ti > 6 && !G.S.warn.tr) { G.S.warn.tr = 1; toast('El tren no frena por nadie.', '🚆'); setTimeout(() => { G.S.warn.tr = 0; }, 9000); } } }
   if (imp > 2.5) crash(imp, car.x + sy * 1.8, car.z + cy * 1.8);
+  // badenes: pasarlos deprisa se paga en la suspensión
+  { const h = calmH(car.x, car.z), sp = Math.abs(car.vf); if (h > .03 && !G.onCalm) { G.onCalm = 1; if (sp > 8.6) { const k = (sp - 8.6) / 5; car.vf *= .82; S.dmg = Math.min(100, S.dmg + 1 + k * 3); sfx('hit'); if (G.fx && G.fx.shake) G.fx.shake(.25 + k * .2); if (!S.warn.calm) { S.warn.calm = 1; toast('¡Ese badén a ' + Math.round(sp * 3.6) + ' km/h! Por encima de 30, la suspensión sufre.', '🚧'); setTimeout(() => { S.warn.calm = 0; }, 20000); } } } else if (h < .005) G.onCalm = 0; }
   if (S.dmg < 100) S.warn.d = 0;
   S.fuel = Math.max(0, S.fuel - car.dist / 250 * (1 + Math.max(0, (car.grade || 0) * (car.vf >= 0 ? 1 : -1)) * 6)); S.stats.km += car.dist / 1000;      // cuesta arriba gasta más
   if (S.fuel <= 0 && !S.warn.nf) { S.warn.nf = 1; toast('Sin gasolina. Llama a la grúa desde el móvil.', '⛽'); } else if (S.fuel > 0) S.warn.nf = 0;
@@ -229,12 +232,12 @@ function tick(dt) { // un paso de juego, sin dibujar
     obs.length = 0; if (G.mode === 'foot') obs.push(P.x, P.z, .5, P.y); obs.push(car.x, car.z, 1.5, car.y); updateTrains(dt, G.px, G.pz, obs); updateTraffic(dt, scene, G.px, G.pz, obs, t);
     { const said = updatePeds(dt, G.px, G.pz, G.mode === 'car' ? car : null, G.mode === 'foot' ? P : null); if (said) { toast(said, '🚶'); sfx('horn'); } }
     tickLife(dt); tickRadio(dt); updateMission(dt); tickDay(dt); updateGps(dt); tickExplore(dt); sounds(dt);
-    const s = spotAt(G.px, G.pz, G.mode === 'car'), foot = G.mode === 'foot', p = !s && foot ? poiAt(P.x, P.z) : null, tr = !s && !p && foot ? transitAt(P.x, P.z) : null, bs = !s && !p && !tr && foot && carDist() >= 3.8 ? busAt(P.x, P.z) : null;
-    if (s) setPrompt('E', s.icon + ' ' + s.n); else if (p) setPrompt('E', (CAT[p.c] || CAT.shop)[2] + ' ' + p.n); else if (tr) setPrompt('E', (tr.k === 'metro' ? '🚇 Metro · ' : '🚆 Tren · ') + tr.n); else if (bs) setPrompt('E', '🚌 Bizkaibus · ' + bs.n); else if (foot && carDist() < 3.8) setPrompt('F', '🚗 Subir al coche'); else setPrompt();
+    const s = spotAt(G.px, G.pz, G.mode === 'car'), foot = G.mode === 'foot', fz = !s && foot ? fiestaAt(P.x, P.z) : null, p = !s && !fz && foot ? poiAt(P.x, P.z) : null, tr = !s && !p && foot ? transitAt(P.x, P.z) : null, bs = !s && !p && !tr && foot && carDist() >= 3.8 ? busAt(P.x, P.z) : null;
+    if (s) setPrompt('E', s.icon + ' ' + s.n); else if (fz) setPrompt('E', fz.k === 'stage' ? '🎤 Escenario del Kasko' : '🍷 Txosna'); else if (p) setPrompt('E', (CAT[p.c] || CAT.shop)[2] + ' ' + p.n); else if (tr) setPrompt('E', (tr.k === 'metro' ? '🚇 Metro · ' : '🚆 Tren · ') + tr.n); else if (bs) setPrompt('E', '🚌 Bizkaibus · ' + bs.n); else if (foot && carDist() < 3.8) setPrompt('F', '🚗 Subir al coche'); else setPrompt();
   } else { if (G.mgTick) G.mgTick(dt); if (!G.dr && G.mode === 'foot') { P.y = standY(P.x, P.z, P.y + .7); G.py = FXB.y = P.y; } P.ethan.root.position.set(P.x, P.y, P.z); P.ethan.root.rotation.y = P.yaw; P.ethan.update(dt); setPrompt(); }
   engine(G.mode === 'car' && !G.title && !G.busy, car.vf, I.my); ambience({ on: !G.title, day: 1 - G.night, rain: SKY.rain, train: TRN.near, trainV: TRN.v, inCar: G.mode === 'car' });
   updateSpots(dt, t, G.px, G.pz); updateCamera(dt); if ((skyT -= dt) < 0) { updateSky(.4 + skyT); skyT = .4; lights(); const quiet = G.night > .7 ? .4 : SKY.rain > .4 ? .7 : 1; TR.max = TR.cap ? Math.max(2, Math.round(TR.cap * quiet)) : 0; PED.max = PED.cap ? Math.max(1, Math.round(PED.cap * quiet * (SKY.rain > .4 ? .6 : 1))) : 0; /* de noche y con lluvia hay menos gente */ } tickSky(dt); G.fx.update(dt); updateHud(dt);
-  tickWorld(dt); tickStreet(t, camera, scene.fog && scene.fog.color); if ((lodT -= dt) < 0) { lodT = .5; updateLods(camera.position.x, camera.position.z); }
+  tickWorld(dt); tickStreet(t, camera, scene.fog && scene.fog.color); tickFiestas(dt, t); if ((lodT -= dt) < 0) { lodT = .5; updateLods(camera.position.x, camera.position.z); }
 }
 // ritmo: media móvil del tiempo por fotograma. Si no llega a unos 42 por segundo baja la resolución y, si ni así, la calidad;
 // si luego va sobrado, lo recupera poco a poco. Si recortar no sirve de nada (el freno no es la gráfica: pantalla a 30 Hz, ahorro de energía…)

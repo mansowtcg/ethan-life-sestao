@@ -4,7 +4,7 @@ import { carMesh } from './props.js';
 import { Vox, mat } from './vox.js';
 import { W, collide, ROAD, roadW, addProp, inWaterPoly, inBuilding, instChunks, clampWorld, roadY, nearJunc } from './world.js';
 import { GR, nearestEdge, laneOffset } from './graph.js';
-import { ST, lightState } from './street.js';
+import { ST, lightState, calmH } from './street.js';
 import { SKY } from './sky.js';
 import { dampAng } from './state.js';
 import { clamp, damp, rng } from './util.js';
@@ -33,7 +33,7 @@ export class Car {
   place(x, z, yaw, y) { this.x = x; this.z = z; this.yaw = yaw; this.vx = this.vz = this.vf = 0; if (T.on) this.y = standY(x, z, y); this.settle(0); this.sync(); }
   // se apoya en el suelo: altura, cabeceo y balanceo según lo que haya bajo los ejes (dt = 0: de golpe)
   settle(dt) {
-    if (!T.on) return; const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw), e = 1.3, y0 = this.y + .5, hF = standY(this.x + sy * e, this.z + cy * e, y0), hB = standY(this.x - sy * e, this.z - cy * e, y0), hL = standY(this.x + cy * .8, this.z - sy * .8, y0), hR = standY(this.x - cy * .8, this.z + sy * .8, y0);
+    if (!T.on) return; const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw), e = 1.3, y0 = this.y + .5, hF = standY(this.x + sy * e, this.z + cy * e, y0) + calmH(this.x + sy * e, this.z + cy * e), hB = standY(this.x - sy * e, this.z - cy * e, y0) + calmH(this.x - sy * e, this.z - cy * e), hL = standY(this.x + cy * .8, this.z - sy * .8, y0), hR = standY(this.x - cy * .8, this.z + sy * .8, y0);
     const ty = (hF + hB) / 2, sf = (hF - hB) / (2 * e), tp = -Math.atan(sf), tr = Math.atan((hL - hR) / 1.6);
     if (!dt) { this.y = ty; this.pitch = tp; this.roll = tr; } else { this.y = Math.abs(ty - this.y) > 1.2 ? ty : damp(this.y, ty, 18, dt); this.pitch = damp(this.pitch, tp, 7, dt); this.roll = damp(this.roll, tr, 6, dt); }      /* la carrocería sigue al firme con algo de amortiguación: sin cabeceos secos */
     this.grade = sf;
@@ -164,7 +164,7 @@ export function buildParked(root, M, avoid, q) {
   // ¿se monta sobre una plaza que ya existe? (pasillos de aparcamiento muy juntos, o una calle pegada a un recinto): dos círculos por coche
   const clash = (x, z, yaw) => { const sx = Math.sin(yaw) * 1.25, cz = Math.cos(yaw) * 1.25, gi = Math.floor(x / 40), gj = Math.floor(z / 40); for (let i = gi - 1; i <= gi + 1; i++) for (let j = gj - 1; j <= gj + 1; j++) { const l = PK.grid.get(i * 100003 + j); if (!l) continue; for (let n = 0; n < l.length; n++) { const q = l[n]; if (Math.abs(q.x - x) > 6 || Math.abs(q.z - z) > 6) continue; const qx = Math.sin(q.yaw) * 1.25, qz = Math.cos(q.yaw) * 1.25;
     for (const a of [1, -1]) for (const b of [1, -1]) if (Math.hypot(x + sx * a - q.x - qx * b, z + cz * a - q.z - qz * b) < 1.75) return true; } } return false; };
-  const slot = (x, z, yaw, ty, ri, rate, sd, pa) => { if (clash(x, z, yaw)) { PK.clash = (PK.clash || 0) + 1; return; } const o = { x, z, yaw, ty, ri, sd: sd || 0, pa: pa ? 1 : 0, occ: r() < rate, dyn: null, i: PK.slots.length }; PK.slots.push(o); const kk = Math.floor(x / 40) * 100003 + Math.floor(z / 40); let l = PK.grid.get(kk); if (!l) PK.grid.set(kk, l = []); l.push(o); if (o.occ) put(x, z, yaw); };
+  const slot = (x, z, yaw, ty, ri, rate, sd, pa) => { if (W.noPark && W.noPark.some(q => Math.hypot(q[0] - x, q[1] - z) < q[2])) return; /* donde van las txosnas de fiestas */ if (clash(x, z, yaw)) { PK.clash = (PK.clash || 0) + 1; return; } const o = { x, z, yaw, ty, ri, sd: sd || 0, pa: pa ? 1 : 0, occ: r() < rate, dyn: null, i: PK.slots.length }; PK.slots.push(o); const kk = Math.floor(x / 40) * 100003 + Math.floor(z / 40); let l = PK.grid.get(kk); if (!l) PK.grid.set(kk, l = []); l.push(o); if (o.occ) put(x, z, yaw); };
   M.roads.forEach((rd, ri) => { const sp = ROAD[rd.t]; if (!sp || !sp[3] || rd.iso && rd.pr) return; const aisle = rd.s === 'pa'; if (!rd.pk && !aisle) return; let L = 0; for (let k = 0; k + 3 < rd.p.length; k += 2) L += Math.hypot(rd.p[k + 2] - rd.p[k], rd.p[k + 3] - rd.p[k + 1]);
     const cumL = [0]; for (let k = 0; k + 3 < rd.p.length; k += 2) cumL.push(cumL[cumL.length - 1] + Math.hypot(rd.p[k + 2] - rd.p[k], rd.p[k + 3] - rd.p[k + 1]));
     /* rumbo de la calle a s metros del principio, y cuánto gira en un tramo: en las curvas suaves tampoco se aparca */

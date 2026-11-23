@@ -770,6 +770,7 @@ export function setNight(n) {
   W.mats.wall.emissiveIntensity = n * .95; W.mats.shop.emissiveIntensity = n * .85; if (W.mats.lamp) W.mats.lamp.color.setHex(n > .25 ? 0xffe6a8 : 0x555a60);
   if (W.mats.pool) { W.mats.pool.opacity = n * .5; const on = n > .15; W.lods.forEach(l => { if (l.tag === 'pool') { l.off = !on; if (!on) l.m.visible = false; } }); }
   if (W.mats.sign) W.mats.sign.emissiveIntensity = .12 + n * .8;
+  if (W.mats.fost) { W.mats.fost.emissive.setHex(0xbfe6ff).multiplyScalar(n * .55); W.mats.fost.opacity = .34 + n * .2; }      // los fosteritos se encienden de noche
 }
 let waveT = 0;
 export function tickWorld(dt) { waveT += dt; const t = W.mats.water && W.mats.water.map; if (t) { t.offset.set(waveT * .012, waveT * .02); } }

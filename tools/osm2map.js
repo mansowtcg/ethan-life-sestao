@@ -147,7 +147,7 @@ function roadWidth(t, tags, one) {
   const n = ln >= 1 ? ln : one ? 1 : 2; return r1(Math.min(15, n * 3.2 + 2.4));         // carriles más una banda de aparcamiento
 }
 const R = [];       // vías en proceso: { t, n, w, o, b, u, v, pr, s, l, rb, p: [[x,z],...] }
-const crossTmp = [], signTmp = [], lightTmp = [], crossSeen = new Set();
+const crossTmp = [], signTmp = [], lightTmp = [], crossSeen = new Set(), calmTmp = [], calmSeen = new Set();
 hw.forEach(w => {
   const t = w.tags.highway, tg = w.tags, p = pts(w); if (p.length < 2) return; const drv = HW[t];
   const one = tg.oneway === 'yes' || tg.oneway === '1' || tg.oneway === 'true' || tg.oneway === '-1' || tg.junction === 'roundabout' || tg.junction === 'circular' || (t === 'motorway' && tg.oneway !== 'no') || (/_link$/.test(t) && tg.oneway !== 'no' && tg.oneway !== undefined);
@@ -169,7 +169,10 @@ hw.forEach(w => {
   const made = []; runs.forEach(q => { q = simplify(q, drv ? .5 : .9, n => n[2] && (used.get(n[2]) > 1 || (nodes.get(n[2]).tags && nodes.get(n[2]).tags.highway))); if (q.length < 2 || lenOf(q) < .5) return; if (rev) q = q.slice().reverse(); const r = Object.assign({}, base, { p: q.map(v => [v[0], v[1]]), ids: q.map(v => v[2]) }); R.push(r); made.push(r); });
   if (!drv || !made.length) return;
   // pasos de cebra, señales y semáforos: van en nodos de la calzada
-  for (let i = 0; i < p.length; i++) { const n = nodes.get(p[i][2]), nt = n && n.tags; if (!nt || !nt.highway || !inside(p[i][0], p[i][1], 4)) continue; const a = p[Math.max(0, i - 1)], b = p[Math.min(p.length - 1, i + 1)], ang = Math.atan2(b[0] - a[0], b[1] - a[1]), road = made.find(r => r.ids.indexOf(n.id) >= 0) || made[0];
+  for (let i = 0; i < p.length; i++) { const n = nodes.get(p[i][2]), nt = n && n.tags;
+    // badenes y pasos elevados (traffic_calming): mesa, lomo o bandas rugosas, atravesados a la calzada
+    if (nt && nt.traffic_calming && !tun && !calmSeen.has(n.id) && inside(p[i][0], p[i][1], 4)) { const kk = { table: 0, hump: 1, bump: 1, cushion: 1, rumble_strip: 2, yes: 1 }[nt.traffic_calming]; if (kk !== undefined) { calmSeen.add(n.id); const a = p[Math.max(0, i - 1)], b = p[Math.min(p.length - 1, i + 1)]; calmTmp.push({ x: p[i][0], z: p[i][1], a: Math.atan2(b[0] - a[0], b[1] - a[1]), road: made.find(r => r.ids.indexOf(n.id) >= 0) || made[0], k: kk }); } }
+    if (!nt || !nt.highway || !inside(p[i][0], p[i][1], 4)) continue; const a = p[Math.max(0, i - 1)], b = p[Math.min(p.length - 1, i + 1)], ang = Math.atan2(b[0] - a[0], b[1] - a[1]), road = made.find(r => r.ids.indexOf(n.id) >= 0) || made[0];
     if (nt.highway === 'crossing' && !/^(unmarked|informal|no)$/.test(nt.crossing || '') && nt['crossing:markings'] !== 'no' && !tun && !crossSeen.has(n.id)) { crossSeen.add(n.id); const sig = nt.crossing === 'traffic_signals' || nt['crossing:signals'] === 'yes'; crossTmp.push({ x: p[i][0], z: p[i][1], a: ang, road, sig }); }
     else if ((nt.highway === 'stop' || nt.highway === 'give_way') && !crossSeen.has(n.id)) { crossSeen.add(n.id); let fwd = nt.direction === 'forward' ? 1 : nt.direction === 'backward' ? 0 : -1; if (fwd < 0) fwd = i >= p.length / 2 ? 1 : 0; if (rev) fwd = 1 - fwd; signTmp.push({ x: p[i][0], z: p[i][1], a: fwd ? ang : ang + Math.PI, road, k: nt.highway === 'stop' ? 0 : 1 }); }
     else if (nt.highway === 'traffic_signals' && !crossSeen.has(n.id)) { crossSeen.add(n.id); lightTmp.push({ x: p[i][0], z: p[i][1], a: ang, road }); } }
@@ -462,6 +465,7 @@ indexBuildings();
 })();
 R.forEach(r => { const o = { t: r.t, p: flat(r.p), w: r.w }; ['n', 'ne', 'o', 'b', 'u', 'v', 'pr', 's', 'l', 'rb', 'ns', 'iso', 'dead', 'inc', 'sc', 'hr', 'cv'].forEach(k => { if (r[k] !== undefined) o[k] = r[k]; }); if (r.pkl) o.pl = r.pkl; if (r.pkr) o.pr2 = r.pkr; r.out = o; M.roads.push(o); });
 crossTmp.forEach(c => { if (R.indexOf(c.road) < 0 || bldAt(c.x, c.z) >= 0) return; M.cross.push(c.x, c.z, r2(c.a), c.road.w, c.sig ? 1 : 0); });
+M.calm = []; calmTmp.forEach(c => { if (R.indexOf(c.road) < 0 || bldAt(c.x, c.z) >= 0) return; M.calm.push(c.x, c.z, r2(c.a), c.road.w, c.k); });
 signTmp.forEach(c => { if (R.indexOf(c.road) < 0) return; M.signs.push(c.x, c.z, r2(c.a), c.road.w, c.k); });
 lightTmp.forEach(c => { if (R.indexOf(c.road) < 0) return; M.lights.push(c.x, c.z, r2(c.a), c.road.w); });
 B.forEach(b => { const o = { p: flat(b.p), h: b.h }; if (b.k) o.k = b.k; ['c', 'rc', 'rs', 'm', 'lv', 'ty', 'rf'].forEach(q => { if (b[q] !== undefined) o[q] = b[q]; }); if (b.real) o.rh = 1; if (b.n) { o.n = b.n; const c = centroid(b.p); if (inside(c[0], c[1], 0)) M.labels.push([c[0], c[1], b.n, 'b']); } M.bld.push(o); });
@@ -555,7 +559,7 @@ const json = JSON.stringify(M); fs.writeFileSync(opt.out, opt.json ? json : '// 
 const km = v => (v / 1000).toFixed(2).replace('.', ',') + ' km';
 console.log(path.basename(opt.out) + ' · ' + (json.length / 1024).toFixed(0) + ' KB · ' + km(2 * HX) + ' × ' + km(2 * HZ) + ' · zona: ' + regSrc + ' (' + reg.map(v => v.toFixed(4)).join(', ') + ')');
 console.log('  vías ' + M.roads.length + ' (' + M.roads.filter(r => HW[r.t]).length + ' para coches, ' + new Set(M.roads.map(r => r.n).filter(Boolean)).size + ' nombres) · edificios ' + M.bld.length + ' (' + B.filter(b => b.real).length + ' con altura real) · agua ' + M.water.length + ' · suelo ' + M.green.length + ' · vías de tren ' + M.rail.length + ' (tren: ' + M.train.length + ') · árboles ' + M.trees.length / 2);
-console.log('  pasos de cebra ' + M.cross.length / 5 + ' · señales ' + M.signs.length / 5 + ' · semáforos ' + (M.lights.length / 4 + M.cross.filter((v, i) => i % 5 === 4 && v).length) + ' · bancos ' + M.props.bench.length / 2 + ' · paradas de bus ' + M.props.bus.length + ' · barrios ' + M.places.length + ' · metro y tren ' + M.transit.length + ' · sitios con nombre ' + M.labels.length + ' · túneles ' + M.tubes.length);
+console.log('  pasos de cebra ' + M.cross.length / 5 + ' · badenes ' + (M.calm || []).length / 5 + ' · señales ' + M.signs.length / 5 + ' · semáforos ' + (M.lights.length / 4 + M.cross.filter((v, i) => i % 5 === 4 && v).length) + ' · bancos ' + M.props.bench.length / 2 + ' · paradas de bus ' + M.props.bus.length + ' · barrios ' + M.places.length + ' · metro y tren ' + M.transit.length + ' · sitios con nombre ' + M.labels.length + ' · túneles ' + M.tubes.length);
 if (2 * HX > 6000 || 2 * HZ > 6000) console.log('  Aviso: la zona pasa de 6 km de lado. Irá más fluido si la recortas con --clip.');
 if (!M.bld.length) console.log('  Aviso: no hay edificios en el archivo. El export tiene que incluir building=*.');
 if (!M.water.length) console.log('  Aviso: no hay agua en la zona.');

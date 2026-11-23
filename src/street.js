@@ -121,8 +121,32 @@ export function buildStreet(M, root, q) {
     const refs = instChunks(root, v.geometry(), lit, list, { far: 260 * far, shadow: q > 1 }), lp = list.map((t, i) => soft(t[0], t[1], .14, 'sign', [refs[i]]));
     ['R', 'A', 'G'].forEach((n, i) => { const b = new Vox(); b.box(0, 3.78 - i * .31, .2, .2, .2, .04, 0xffffff); const m = W.mats['tl' + n] = new THREE.MeshBasicMaterial({ color: 0x222222 }); const rf = instChunks(root, b.geometry(), m, list, { far: 260 * far }); lp.forEach((p, k) => p.inst.push(rf[k])); }); }
 
-  poiSigns(M, root, q, far); transit(M, root, q); landmarks(M, root, q); puente(root, q); plates(M, root, q, far);
+  calming(M, root); poiSigns(M, root, q, far); transit(M, root, q); landmarks(M, root, q); puente(root, q); plates(M, root, q, far);
 }
+// ---------- badenes y pasos elevados del mapa (traffic_calming): mesa (paso elevado, 10 cm), lomo (8 cm) y bandas rugosas.
+// calmH(x, z) da cuánto levantan el firme en ese punto: el coche de Ethan lo nota (cabecea y, si pasa deprisa, se resiente)
+export const CALM = [];
+const PROF = [a => a < 1.4 ? .1 : a < 2.3 ? .1 * (2.3 - a) / .9 : 0, a => a < 1.85 ? .08 * Math.cos(a / 1.85 * Math.PI / 2) ** 2 : 0, () => 0], HALF = [2.3, 1.85, 1.8];
+export function calmH(x, z) { for (let i = 0; i < CALM.length; i++) { const c = CALM[i], dx = x - c.x, dz = z - c.z; if (dx * dx + dz * dz > c.R2) continue; const u = dx * c.ux + dz * c.uz, v = -dx * c.uz + dz * c.ux; if (Math.abs(v) > c.hw) continue; const h = PROF[c.k](Math.abs(u)); if (h > 0) return h; } return 0; }
+function calming(M, root) {
+  const C = M.calm || [], g = new Geo(), cA = lin2(0x5b6167), cW = lin2(0xeeebe2), cS = lin2(0x4a4f55), cR = lin2(0xb9b3a6), X = M.cross || [];
+  for (let k = 0; k < C.length; k += 5) { const x = C[k], z = C[k + 1], a = C[k + 2], w = C[k + 3], kind = C[k + 4], ux = Math.sin(a), uz = Math.cos(a), hw = w / 2, half = HALF[kind];
+    if (deckY(x, z) > -1e8) continue; CALM.push({ x, z, ux, uz, hw, k: kind, R2: (half + hw) ** 2 });
+    let zebra = false; for (let q = 0; q < X.length; q += 5) { const dx = X[q] - x, dz = X[q + 1] - z; if (Math.abs(dx * ux + dz * uz) < half + 1.5 && Math.abs(-dx * uz + dz * ux) < hw + 1) { zebra = true; break; } }      // paso de cebra elevado: las franjas, arriba
+    const P = (u, v) => [x + ux * u - uz * v, z + uz * u + ux * v], Y = (u, v, h) => { const p = P(u, v); return gY(p[0], p[1]) + .17 + h; };
+    const strip = (u0, u1, v0, v1, col, lift) => { const pr = PROF[kind], a0 = P(u0, v0), a1 = P(u1, v0), b1 = P(u1, v1), b0 = P(u0, v1), h0 = pr(Math.abs(u0)) + lift, h1 = pr(Math.abs(u1)) + lift;
+      g.quad(g.v(a0[0], Y(u0, v0, h0), a0[1], 0, 1, 0, col), g.v(b0[0], Y(u0, v1, h0), b0[1], 0, 1, 0, col), g.v(b1[0], Y(u1, v1, h1), b1[1], 0, 1, 0, col), g.v(a1[0], Y(u1, v0, h1), a1[1], 0, 1, 0, col)); };
+    if (kind === 2) { for (let u = -1.5; u <= 1.51; u += .6) { strip(u - .15, u + .15, -hw, hw, cR, .02); } continue; }
+    const step = kind ? .37 : .3; for (let u = -half; u < half - .001; u += step) { const u1 = Math.min(half, u + step); strip(u, u1, -hw, hw, cA, .012);
+      // dientes blancos en las rampas y, si es un paso de cebra elevado, las franjas arriba
+      const ramp = kind ? Math.abs(u + step / 2) > .3 : Math.abs(u + step / 2) > 1.4; if (ramp) for (let v = -hw + .4; v < hw - .5; v += 1.1) strip(u, u1, v, v + .45, cW, .02);
+      else if (kind === 0 && zebra) for (let v = -hw + .3; v < hw - .4; v += 1) strip(u, u1, v, v + .5, cW, .02); }
+    for (const sd of [-1, 1]) for (let u = -half; u < half - .001; u += .3) { const u1 = Math.min(half, u + .3), v = sd * hw, a0 = P(u, v), a1 = P(u1, v), h0 = PROF[kind](Math.abs(u)), h1 = PROF[kind](Math.abs(u1)), b0 = gY(a0[0], a0[1]) + .17, b1 = gY(a1[0], a1[1]) + .17;
+      if (h0 < .005 && h1 < .005) continue; const nx = -uz * sd, nz = ux * sd; g.quad(g.v(a0[0], b0, a0[1], nx, 0, nz, cS), g.v(a1[0], b1, a1[1], nx, 0, nz, cS), g.v(a1[0], b1 + h1 + .012, a1[1], nx, 0, nz, cS), g.v(a0[0], b0 + h0 + .012, a0[1], nx, 0, nz, cS)); } }
+  if (g.nv) { const m = new THREE.Mesh(g.build(), mat('lit')); m.receiveShadow = true; m.matrixAutoUpdate = false; root.add(m); } ST.calm = CALM.length;
+}
+const lin2 = hex => { const c = new THREE.Color(hex); return [c.r, c.g, c.b]; };
+
 // ---------- placas con el nombre de la calle en las esquinas: en la fachada si la hay, si no en un poste. Un atlas de nombres en un canvas
 function plates(M, root, q, far) {
   const names = [], idx = new Map(), list = [], byName = new Map(), CW = q === 1 ? 128 : 192, CH = q === 1 ? 32 : 48, PER = q === 1 ? 16 : 10;      // atlas pequeño: en calidad baja, 2048×512

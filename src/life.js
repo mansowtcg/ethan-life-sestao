@@ -4,6 +4,7 @@ import { dialog, closeDialog, toast, banner, fade, eur, fmtTime, openMap } from 
 import { SP } from './spots.js';
 import { W } from './world.js';
 import { ST, CAT } from './street.js';
+import { fiestas } from './fiestas.js';
 import { openAlbum } from './explore.js';
 import { SKY } from './sky.js';
 import { P } from './player.js';
@@ -164,6 +165,21 @@ function sportFun(p, o, re) {
     workBlock(0, fr ? 'Frontón' : 'Partidillo', q => { feed(-10, -14); pass(fr ? 50 : 60); if (q >= .6) { addBuff('sport', 'En forma', '💪', 'regen', 1.2, 18); banner(fr ? '¡Ganas a pala!' : '¡Gana tu equipo!', fr ? '22 a ' + Math.round(10 + Math.random() * 10) + '. Los del barrio piden la revancha.' : Math.round(3 + q * 3) + ' a ' + Math.round(1 + Math.random() * 2) + '. Ethan marca uno de rebote.', 3000); sfx('win'); moment(k); } else toast(fr ? 'Pierdes a pala. La pared siempre gana.' : 'Pierde tu equipo. La culpa, del portero.', fr ? '🎾' : '⚽'); re(); },
       { title: fr ? 'Frontón' : 'Partidillo', word: fr ? 'pelotazo' : 'disparo', steps: 6, hit: fr ? '¡Al ancho!' : '¡Golazo!', miss: fr ? 'Falta' : 'Fuera', speed: 1.1 }); } });
 }
+// ---------- Sampedros: concierto en el Kasko y txosnas en Las Canteras (ver fiestas.js)
+export function enterFiesta(f) {
+  const S = G.S, D = S.daily, re = () => enterFiesta(f), buy = (cost, fn) => () => { if (S.money < cost) { toast('No te llega el dinero.', '💸'); sfx('bad'); return; } money(-cost); fn(); re(); };
+  if (f.k === 'stage') { if (!f.on) return dialog({ icon: '🎤', title: 'Escenario del Kasko', text: 'Sampedros: el concierto empieza a las 22:00. Ahora están probando sonido: «¿Se oye? ¿Se oye?».', options: [] });
+    return dialog({ icon: '🎤', title: 'Concierto en el Kasko', text: say(['La plaza, a reventar. Suenan versiones de toda la vida y nadie se sabe la letra entera.', 'El grupo pide palmas. El Kasko entero da palmas a destiempo.', 'Huele a talo y a bocata de txistorra. Suena la de todos los años.']), options: [
+      { t: 'Quedarse al concierto', d: D.conc ? 'Ya has estado esta noche' : 'Hora y media de música en la plaza', tag: '1,5 h', dis: !!D.conc, f: () => { D.conc = 1; pass(90); feed(-8, -15); addBuff('sampedros', 'Sampedros', '🎉', 'all', 1.15, 14); toast('¡Gora San Pedro! Ethan vuelve a casa sin voz.', '🎉'); sfx('win'); re(); } },
+      { t: 'Bailar en primera fila', d: D.dance ? 'Las piernas ya no dan para más' : 'Al ritmo: para la aguja en lo verde en cada golpe', tag: '20 min', dis: !!D.dance, f: () => { D.dance = 1;
+        workBlock(0, 'Primera fila', q => { pass(20); feed(-4, -8); if (q >= .6) { banner('¡Te lo bailas todo!', 'El cantante te señala desde el escenario. O eso dices tú.', 3000); sfx('win'); } else toast('Bailas como bailas. Pero bailas.', '🕺'); re(); }, { title: 'Primera fila', word: 'paso', steps: 6, hit: '¡Al ritmo!', miss: 'A destiempo', speed: 1.35 }); } }] }); }
+  if (!f.on) return dialog({ icon: '🍷', title: 'Txosna', text: 'Todavía cerrada: las txosnas abren a las 19:00 (el finde, a mediodía).', options: [] });
+  return dialog({ icon: '🍷', title: 'Txosna · Las Canteras', text: say(['Música a todo volumen, vasos de plástico y cola para pedir.', 'En la barra, voluntarios con camiseta de las fiestas. Te atienden rapidísimo.', 'Alguien canta el estribillo antes de que empiece la canción.']), options: [
+    { t: 'Kalimotxo', d: 'Vino con cola, en vaso grande de plástico', tag: eur(2.5), f: buy(2.5, () => { feed(0, 6); pass(10); toast('Kalimotxo de txosna. Clásico de fiestas.', '🍷'); }) },
+    { t: 'Refresco', d: 'Para el que conduce', tag: eur(2), f: buy(2, () => { feed(0, 10); pass(5); toast('Refresco bien frío.', '🥤'); }) },
+    { t: 'Bocata de txistorra', d: 'Recién hecho en la plancha', tag: eur(4), f: buy(4, () => { feed(45, 2); pass(15); toast('Bocata de txistorra. Te pringas entero.', '🌭'); }) },
+    { t: 'Echar el rato en la txosna', d: D.txo ? 'Ya has estado hoy' : 'Media hora con la cuadrilla y la música', tag: '30 min', dis: !!D.txo, f: () => { D.txo = 1; pass(30); feed(-3, 4); addBuff('txosna', 'Txosnas', '🍷', 'regen', 1.1, 10); toast('Media hora de txosna: se habla a gritos, como debe ser.', '🍷'); re(); } }] });
+}
 // ---------- Bizkaibus: desde cualquier parada del mapa a la parada más cercana de uno de los sitios de Ethan
 export function enterBus(st) {
   const S = G.S, cost = 1.5, h = S.min, opts = [], used = new Set([st]);
@@ -314,6 +330,7 @@ let radioT = 25, radioI = Math.floor(Math.random() * RADIO.length), mainSt = nul
 // titulares que salen del propio juego: el tiempo que hace y una calle principal del mapa
 function liveLine() {
   if (!mainSt) { const set = new Set(); W.map.roads.forEach(r => { if (r.n && !r.x && !r.iso && (r.t === 'primary' || r.t === 'secondary' || r.t === 'tertiary') && !/^BI-|^N-|^A-/.test(r.n)) set.add(r.n); }); mainSt = [...set]; }
+  if (fiestas(G.S) && Math.random() < .45) return say(['Sampedros: esta noche, concierto en la plaza del Kasko a las 22:00. Txosnas abiertas en Las Canteras.', 'Fiestas de San Pedro: el Kasko, lleno; Las Canteras, más. ¡Gora San Pedro!', 'Aviso de tráfico por los Sampedros: ni lo intentes por el Kasko esta noche.']);
   if (Math.random() < .5 || !mainSt.length) return 'El tiempo en Sestao: ' + SKY.label.toLowerCase() + '. ' + (SKY.rain > .3 ? 'El paraguas, ni lo cierres.' : SKY.cover > .62 ? 'El Serantes tiene txapela: paraguas.' : SKY.cover > .5 ? 'Paraguas por si acaso.' : 'Se ve el Serantes clarito. Aprovecha, que esto no dura.');
   return 'Tráfico: circulación lenta en ' + mainSt[Math.floor(Math.random() * mainSt.length)] + '. Lo de todos los días.';
 }
@@ -329,8 +346,9 @@ export function tickRadio(dt) {
 const HELP = [
   ['🎮 Controles', 'Ordenador: WASD para moverte, Mayús para correr, E para todo (entrar, hablar, coger el ascensor), F para subir o bajar del coche, Espacio freno de mano, V cambia la cámara, M el mapa, T el móvil y R la cámara rápida. Móvil: palanca a la izquierda, botones a la derecha, y se arrastra para mirar.'],
   ['⏰ El día de Ethan', 'Suena el despertador a las 6:30. A las 8:00 se ficha en el taller (de lunes a viernes) y se trabaja con minijuegos: tuercas, ruedas, aceite, averías, arrancar con pinzas, pulir arañazos y presupuestos de cabeza. De 13:00 a 15:00, parón para comer. A las 18:00, a casa. La agenda de la izquierda dice siempre qué toca y el GPS se pone solo.'],
-  ['🅿️ Aparcar', 'Por la tarde la zona de casa (cortina verde) está llena. Da vueltas: cuando se va alguien, te avisa y el GPS te lleva al hueco, pero vuela. Valla roja, ocupado; valla verde con haz de luz, libre. Si no hay manera, el parking grande (cortina azul). Sin el coche bien aparcado no se sube a dormir.'],
+  ['🅿️ Aparcar', 'Por la tarde la zona de casa (cortina verde) está llena. Da vueltas: cuando se va alguien, te avisa y el GPS te lleva al hueco, pero vuela. Valla roja, ocupado; valla verde con haz de luz, libre. Si no hay manera, el parking grande (cortina azul). Sin el coche bien aparcado no se sube a dormir. Ojo con los badenes: por encima de 30 km/h, la suspensión lo paga.'],
   ['🍢 Entre medias', 'En los bares del mapa: pintxo-pote (jueves y viernes por la tarde, tres bares), futbolín, mus y el partido del Athletic el finde. Frontones y campos para echar un partido. En casa: cocinar (si has hecho la compra en el súper), buzoneo y recados de la vecina. En la lonja de la cuadrilla (por la tarde entre semana, desde mediodía el finde): echar la tarde, la Play, el bote y, viernes y sábado por la noche, cena de cuadrilla. En el kebab, el bar y lo de Lourdes salen encargos. Los planes de cada día se eligen en el despertador.'],
+  ['🎉 Sampedros', 'Del 19 al 29 de junio (días 19 a 29 de la partida, que empieza el lunes 1 de junio): fiestas de San Pedro. Por la noche, concierto en la plaza del Kasko a las 22:00, y txosnas en Las Canteras desde las 19:00 (el finde, desde mediodía).'],
   ['🗺️ Moverse por Sestao', 'Las escaleras, rampas mecánicas y ascensores públicos son atajos entre las calles de arriba y las de abajo. Metro (bajo los fosteritos de cristal) y tren llevan de una estación a otra, y desde las paradas el Bizkaibus te deja cerca de tus sitios. Si el Serantes tiene txapela, llueve. Si el coche se queda lejos, el móvil llama a la grúa.']];
 function howTo(i) { i = i || 0; const h = HELP[i]; dialog({ icon: '❓', title: h[0], text: h[1], close: 'Volver', onClose: () => openPhone(), options: i + 1 < HELP.length ? [{ t: 'Siguiente', d: HELP[i + 1][0], f: () => howTo(i + 1) }] : [] }); }
 export function openPhone() {
