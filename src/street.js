@@ -52,6 +52,21 @@ export function buildStreet(M, root, q) {
     instChunks(root, sv.geometry(), lit, sheds, { far: 260 * far, shadow: q > 1, ground: true, color: true }); instChunks(root, dv.geometry(), lit, drums, { far: 140 * far, ground: true });
     ST.huertas = { n: nH, plots: soil.length, plants: let_.length + tom.length, sheds: sheds.length }; }
 
+  // ---------- contenedores de basura y reciclaje, como en cualquier calle de Sestao: grupos de cuatro en la banda de aparcamiento (resto, envases,
+  // papel y el iglú del vidrio), uno cada ciento y pico metros. Donde van no se aparca
+  { const pos = [], noP = W.noPark || (W.noPark = []); let nG = 0; const COL = [0x4a5a4e, 0xe0b23a, 0x2a5bb8, 0x3f8a4a];
+    M.roads.forEach((rd, ri) => { const sp = ROAD[rd.t]; if (!sp || !sp[3] || rd.b || rd.u || !/residential|tertiary|secondary|living/.test(rd.t)) return; const bw = rd.pkR || rd.pkL, sd = rd.pkR ? 1 : -1; if (!bw || (sd > 0 ? rd.pr2 : rd.pl) > 1) return;
+      const p = rd.p; let L = 0; for (let k = 0; k + 3 < p.length; k += 2) L += Math.hypot(p[k + 2] - p[k], p[k + 3] - p[k + 1]); if (L < 60) return; const lat = sd * (rd.w / 2 - bw / 2 - .16);
+      for (let s0 = 30 + (ri % 6) * 11; s0 < L - 25; s0 += 150) { let acc = 0, k = 0; while (k + 3 < p.length) { const l = Math.hypot(p[k + 2] - p[k], p[k + 3] - p[k + 1]); if (acc + l >= s0) break; acc += l; k += 2; } if (k + 3 >= p.length) break;
+        const dx = p[k + 2] - p[k], dz = p[k + 3] - p[k + 1], l = Math.hypot(dx, dz) || 1, ux = dx / l, uz = dz / l, t = s0 - acc; if (t < 5 || l - t < 5) continue; const cx = p[k] + ux * t - uz * lat, cz = p[k + 1] + uz * t + ux * lat;
+        if (nearJunc(cx, cz, 12) || inBuilding(cx, cz) || inWaterPoly(cx, cz) || collide(cx, cz, 1, true).hit || noP.some(q => Math.hypot(q[0] - cx, q[1] - cz) < q[2] + 5)) continue;
+        const rn = roadNear(cx - uz * sd * 2.2, cz + ux * sd * 2.2, 6, false); if (rn.r && rn.r !== rd && rn.d < 0) continue;      /* un camino o un vado que sale ahí */
+        for (let i = 0; i < 4; i++) { const o = (i - 1.5) * 1.75, x = cx + ux * o, z = cz + uz * o; pos.push([x, z, Math.atan2(ux, uz) + Math.PI / 2, i]); addProp(x, z, .78, 'deco'); }
+        noP.push([cx, cz, 4.8]); (ST.binAt || (ST.binAt = [])).push([cx, cz, ux, uz, sd]); nG++; } });
+    const bins = [0, 1, 2].map(i => { const v = new Vox(), c = COL[i]; v.box(0, 0, 0, 1.15, 1.25, 1.65, c, { top: c }); v.bx(-.62, 1.2, -.85, .62, 1.38, .85, c); v.box(.5, .55, 0, .06, .35, 1.2, 0x2c3036); [-.6, .6].forEach(z => v.box(-.3, 0, z, .3, .18, .3, 0x26262c)); return v.geometry(); });
+    const ig = new Vox(); ig.cyl(0, 0, 0, .72, 1.1, COL[3], { seg: 4 }); ig.cyl(0, 1.1, 0, .5, .35, COL[3], { seg: 4 }); ig.box(0, 1.45, 0, .2, .25, .2, 0x2c3036); ig.box(.5, .8, 0, .3, .14, .5, 0x26262c);
+    [bins[0], bins[1], bins[2], ig.geometry()].forEach((g, i) => instChunks(root, g, lit, pos.filter(q => q[3] === i).map(q => [q[0], q[1], q[2]]), { far: 160 * far, shadow: q > 2 })); ST.bins = nG; }
+
   // ---------- farolas, alternando acera
   { const lamps = []; let total = 0; const ok = rd => { const sp = ROAD[rd.t]; return sp && sp[3] && rd.t !== 'service' && rd.t !== 'track' && rd.t.indexOf('_link') < 0 && !rd.u && !rd.pr; };
     M.roads.forEach(rd => { if (!ok(rd)) return; for (let k = 0; k + 3 < rd.p.length; k += 2) total += Math.hypot(rd.p[k + 2] - rd.p[k], rd.p[k + 3] - rd.p[k + 1]); });

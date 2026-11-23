@@ -12,7 +12,7 @@ import { toast, banner, setTracker, eur } from './hud.js';
 import { money, saveGame } from './life.js';
 import { sfx } from './audio.js';
 import { damp } from './util.js';
-import { standY } from './terrain.js';
+import { standY, gY } from './terrain.js';
 import { Vox } from './vox.js';
 import { RATE, addBuff, moment, cash, goSleep, carHome, note } from './day.js';
 import { pass, feed, workBlock } from './life.js';
@@ -124,6 +124,19 @@ const START = {
       tick() { if (G.mode !== 'foot') return; if (dist(M.goal.x, M.goal.z) < 2.6) { M.k++; sfx('ui'); if (M.k >= 5) { endMission(true, 'Cinco portales, cero perros. La de la imprenta paga en mano.', 18); moment('buzon'); return; } toast('Folletos dentro. ' + (5 - M.k) + ' portales más.', '📬'); goal(at(ord[M.k]), 'Portal ' + (M.k + 1), '📬'); } },
       timeout() { const pay = M.k * 3; endMission(false, 'Se acabó el tiempo: ' + M.k + ' de 5 portales.', pay || undefined); } });
     goal(at(ord[0]), 'Portal 1', '📬'); banner('📬 Buzoneo', 'Cinco portales del barrio, andando. Las escaleras son atajos.', 3600); sfx('ok');
+  },
+  // reto del día: subir andando a lo alto. Valen las cuestas, las escaleras, las rampas mecánicas y los ascensores públicos
+  subida() {
+    if (G.mode === 'car') { toast('El reto se hace andando. Bájate del coche.', '⛰️'); return false; }
+    const y0 = gY(G.px, G.pz); let best = null, bs = -1e9;
+    for (let n = 0; n < GR.x.length; n += 2) { if (GR.out[n]) continue; const x = GR.x[n], z = GR.z[n], d = Math.hypot(x - G.px, z - G.pz); if (d < 220 || d > 750) continue; const h = gY(x, z) - y0, sc = h - d * .025; if (h > 20 && sc > bs) { bs = sc; best = [x, z, h]; } }
+    if (!best) { toast('Desde aquí no hay cuesta que merezca la pena. Baja hacia la ría y prueba otra vez.', '⛰️'); return false; }
+    const rt = routeTo(G.px, G.pz, best[0], best[1], true); let L = 0; if (rt) for (let i = 1; i < rt.nodes.length; i++) L += Math.hypot(GR.x[rt.nodes[i]] - GR.x[rt.nodes[i - 1]], GR.z[rt.nodes[i]] - GR.z[rt.nodes[i - 1]]); else L = Math.hypot(best[0] - G.px, best[1] - G.pz) * 1.5;
+    G.S.daily.subida = 1; const gx = best[0], gz = best[1], rise = Math.round(best[2]), nm = streetAt(gx, gz);
+    Object.assign(M, { title: 'Reto: la subida', t: 30 + L / 3.8 + rise * .9, text: () => 'Sube a pie' + (nm ? ' a ' + nm : '') + ' · ' + rise + ' m más arriba · ' + Math.round(dist(gx, gz)) + ' m',
+      tick() { if (G.mode !== 'foot') { endMission(false, 'En coche no vale. El reto es andando.'); return; } if (dist(gx, gz) < 3.2) { addBuff('piernas', 'Piernas de Sestao', '🦵', 'regen', 1.15, 12); endMission(true, rise + ' m de desnivel a pie. Sestao se sube con las piernas.', 10); } },
+      timeout() { endMission(false, 'Se acabó el tiempo a ' + Math.round(dist(gx, gz)) + ' m de arriba. Mañana, más.'); } });
+    goal({ x: gx, z: gz, r: 3 }, 'Lo alto', '⛰️'); banner('⛰️ Reto: la subida', 'A pie hasta ' + (nm || 'lo alto') + ': ' + rise + ' m más arriba. Las escaleras y los ascensores públicos son atajos.', 3800); sfx('ok');
   },
   // la vecina del cuarto: su receta en una farmacia y de vuelta al portal de casa
   vecina() {
