@@ -83,3 +83,18 @@ button{font:inherit;color:inherit;border:0;cursor:pointer}
 .gpf{outline:3px solid #c8dc4a!important;outline-offset:2px;box-shadow:0 0 0 6px #c8dc4a44!important}
 @media (max-width:520px){#lim{right:auto;left:-18px}}
 #bm-list button.sub{opacity:.88;font-size:.92em}
+.mg-align{position:relative;height:46px;margin:4px 6px 12px;border-radius:10px;background:#23292e;overflow:hidden;box-shadow:inset 0 2px 0 #0004}
+.mg-align i{position:absolute;left:40.8%;width:18.4%;top:0;bottom:0;background:#3f6b4e}
+.mg-align b{position:absolute;top:5px;bottom:5px;left:50%;width:6px;margin-left:-3px;border-radius:3px;background:#e0483c}
+.mg-align b.in{background:#cfe8d4}
+.mg-lr{display:flex;gap:10px;justify-content:center}
+.mg-lr button{flex:1;max-width:170px;background:#f2efe6;color:#1f3328;border-radius:12px;padding:12px;font-weight:900;box-shadow:0 3px 0 #cfc9b8;touch-action:manipulation}
+.mg-itv{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-width:340px;margin:0 auto}
+.mg-itv button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 6px;border-radius:12px;background:#2b2f33;color:#aab3b8;touch-action:manipulation;transition:background .08s}
+.mg-itv button span{font-size:26px;filter:grayscale(1) brightness(.55)}
+.mg-itv button em{font-style:normal;font-size:12px;font-weight:800}
+.mg-itv button.on{background:#f4c542;color:#2b2200;box-shadow:0 0 18px #f4c542}
+.mg-itv button.on span,.mg-itv button.ok span{filter:none}
+.mg-itv button.ok{background:#3f6b4e;color:#cfe8d4}
+.mg-itv button.bad{background:#e0483c;color:#fff}
+.mg-itv.show button{pointer-events:none}

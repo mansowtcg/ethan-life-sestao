@@ -46,7 +46,11 @@ function firm(x, z, base) {
   // la más cercana de las que pasan por aquí hace de referencia (una calzada antes que un camino)
   let ddC = 1e9, ddA = 1e9, ref = -1, rk = 1e9; for (let i = 0; i < pTouch.length; i++) { const wi = pTouch[i], e = PW[wi], raw = Math.sqrt(pBest[wi]), dd = Math.max(0, raw - e.hw); pBest[wi] = dd; pRaw[wi] = raw; if (dd >= PMG) continue; if (dd < ddA) ddA = dd; if (e.car && dd < ddC) ddC = dd; const key = raw + (e.car ? 0 : 50); if (key < rk) { rk = key; ref = wi; } }
   if (ref < 0) return base;
-  const hRef = hAt(PW[ref], pSeg[ref], pT[ref]), pathW = smooth(ddC / .8); let sw = 0, sh = 0;
+  let hRef = hAt(PW[ref], pSeg[ref], pT[ref]); const pathW = smooth(ddC / .8); let sw = 0, sh = 0;
+  // pasado el bordillo, si el punto cae de lleno en un camino que va a otra altura (el que sale de una pasarela en terraplén, una escalera
+  // junto a la calzada), manda el camino: hay un muro entre los dos, no un escalón en mitad del camino
+  if (PW[ref].car && ddC > .2) { let bp = -1, br2 = 1e9; for (let i = 0; i < pTouch.length; i++) { const wi = pTouch[i], e = PW[wi]; if (e.car || pRaw[wi] >= e.hw || pRaw[wi] >= br2) continue; br2 = pRaw[wi]; bp = wi; }
+    if (bp >= 0) { const h = hAt(PW[bp], pSeg[bp], pT[bp]); if (Math.abs(h - hRef) > 1.2) { ref = bp; hRef = h; } } }
   for (let i = 0; i < pTouch.length; i++) { const wi = pTouch[i], e = PW[wi], dd = pBest[wi]; if (dd >= PMG) continue; const rr = Math.min(1, pRaw[wi] / e.hw); let wt = Math.exp(-3 * rr * rr) / (dd * dd + .06);      /* cada vía pesa sobre todo en su eje: donde dos calzadas se solapan, cada una conserva su altura en su centro */ if (!e.car) { wt *= pathW; if (wt <= 0) continue; }
     const h = wi === ref ? hRef : hAt(e, pSeg[wi], pT[wi]); if (Math.abs(h - hRef) > 1.2) continue;      /* otra vía a distinta altura (la que pasa bajo un puente junto al estribo): no se promedia con ella, hay un muro entre las dos */
     sw += wt; sh += wt * h; }
@@ -208,6 +212,15 @@ export function initTerrain(M, ways, ext, aprons) {
     for (let it = 0; it < 4; it++) clrs.forEach(q => { const c = q[0], top = H[q[2]] + q[3] + .3; if (!cnt[c.A]) H[c.A] = Math.max(H[c.A], top - c.mb * Math.max(0, q[1] - q[5]) * c.Lt); if (!cnt[c.B]) H[c.B] = Math.max(H[c.B], top - c.mb * Math.max(0, 1 - q[1] - q[5]) * c.Lt); });
     // con el perfil ya curvado, los caminos que nacen en mitad de un puente se ajustan a él
     hulls(); for (let it = 0; it < 24; it++) { slave(); relax(segs); if (it < 20) { smoothG(.5); abut(.6); hulls(); } } hulls(); slave();
+    // pasarela que salva una calle pegada a su estribo (la antigua vía de Ansio en Urbinaga): el tablero no puede bajar a tiempo y
+    // el camino seguía a ras de suelo, con un escalón de 5 m. El camino de después va en terraplén: sale a la altura del tablero y
+    // baja con su rampa (las escaleras, con la suya) hasta encontrar el terreno
+    { const pa = new Map(), add = (a, b, l, s) => { let x = pa.get(a); if (!x) pa.set(a, x = []); x.push(b, l, s); }, carAt = new Set(), hang = [];
+      W.forEach(o => { if (o.bridge || o.w.ghost) return; if (o.w.car || o.w.rail !== undefined) { o.v.forEach(id => carAt.add(id)); return; } const s = o.w.r && o.w.r.t === 'steps' ? .55 : .14; for (let k = 0; k + 1 < o.v.length; k++) { const l = Math.hypot(o.x[k + 1] - o.x[k], o.z[k + 1] - o.z[k]) || .01; add(o.v[k], o.v[k + 1], l, s); add(o.v[k + 1], o.v[k], l, s); } });
+      chains.forEach(c => { if (c.rail || c.mb < .15 || !c.at) return; [[c.A, 0], [c.B, 1]].forEach(e => { const id = e[0], top = c.at(e[1]); if (!cnt[id] || carAt.has(id) || psOf.has(id) || top - H[id] < .6) return;
+        hang.push([Math.round(NX[id]), Math.round(NZ[id]), +(top - H[id]).toFixed(1)]); H[id] = top; const best = new Map([[id, top]]), q = [id];
+        while (q.length) { const a = q.shift(), ha = best.get(a), nb = pa.get(a); if (!nb) continue; for (let k = 0; k < nb.length; k += 3) { const b = nb[k], hb = ha - nb[k + 2] * nb[k + 1]; if (carAt.has(b) || psOf.has(b) || use.has(b) || hb <= H[b] + .05 || (best.get(b) || -1e9) >= hb) continue; best.set(b, hb); H[b] = hb; q.push(b); } } }); });
+      T.hang = hang; }
   { let nv = 0, mv = 0; for (let s = 0; s < segs.length; s++) { const q = segs[s], e = Math.abs(H[q[1]] - H[q[0]]) - q[3] * q[2]; if (e > .05) { nv++; if (e > mv) mv = e; } } let nx2 = 0, mx2 = 0; for (let s = 0; s < cross.length; s++) { const q = cross[s], e = Math.abs(H[q[1]] - H[q[0]]) - q[3] * q[2]; if (e > .05) { nx2++; if (e > mx2) mx2 = e; } } T.residX = [cross.length, nx2, +mx2.toFixed(2)]; T.resid = [segs.length, nv, +mv.toFixed(2)]; }
     T.decks = br.map(o => { const p0 = o.w.p, n0 = p0.length / 2, p = [], hh = [], L = o.len; let acc = 0, x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
       for (let k = 0; k < n0; k++) { if (k) { const ax = p0[k * 2 - 2], az = p0[k * 2 - 1], bx = p0[k * 2], bz = p0[k * 2 + 1], l = Math.hypot(bx - ax, bz - az), m = Math.max(1, Math.ceil(l / 6)); for (let q = 1; q <= m; q++) { p.push(ax + (bx - ax) * q / m, az + (bz - az) * q / m); hh.push(o.ch.at(o.s0 + (o.s1 - o.s0) * (acc + l * q / m) / L)); } acc += l; } else { p.push(p0[0], p0[1]); hh.push(o.ch.at(o.s0)); } }

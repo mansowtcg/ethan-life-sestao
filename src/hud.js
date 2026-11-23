@@ -113,7 +113,8 @@ function fillList(q) {
   SP.list.slice().sort((a, b) => Math.hypot(a.x - G.px, a.z - G.pz) - Math.hypot(b.x - G.px, b.z - G.pz)).forEach(sp => add(sp.icon + ' ' + sp.n + ' · ' + fmtD(Math.hypot(sp.x - G.px, sp.z - G.pz)), () => G.setDest({ x: sp.x, z: sp.z, n: sp.n, icon: sp.icon })));
   if (G.car && G.mode === 'foot') add('🚗 Mi coche', () => G.setDest({ x: G.car.x, z: G.car.z, n: 'Tu coche', icon: '🚗' })); if (G.dest && !G.mission) add('✖ Quitar el GPS', () => G.setDest(null));
   // qué hacer cerca: el más cercano de cada sitio con actividad (los demás se buscan por nombre)
-  { const KIND = [['muelle', 'Pescar en el muelle'], ['bolos', 'Bolos'], ['canasta', 'Cancha de baloncesto'], ['fronton', 'Frontón'], ['campo', 'Partidillo'], ['sport', 'Gimnasio']], d = p => Math.hypot(p.x - G.px, p.z - G.pz);
+  { const KIND = [['muelle', 'Pescar en el muelle'], ['huerta', 'Echar una mano en la huerta'], ['bolos', 'Bolos'], ['canasta', 'Cancha de baloncesto'], ['fronton', 'Frontón'], ['campo', 'Partidillo'], ['sport', 'Gimnasio']], d = p => Math.hypot(p.x - G.px, p.z - G.pz);
+    [[/biblioteca/i, '📚', 'Leer en la biblioteca'], [/cine/i, '🎬', 'Cine']].forEach(k => { let best = null; ST.pois.forEach(p => { if (p.c === 'civic' && k[0].test(p.n || '') && (!best || d(p) < d(best))) best = p; }); if (best) add(k[1] + ' ' + k[2] + ' · ' + fmtD(d(best)), () => G.setDest({ x: best.x, z: best.z, n: best.n, icon: k[1] }), 'sub'); });
     const ll = ST.pois.find(p => p.pitch && /llanas/i.test(p.n || '')); if (ll) add('⚽ Las Llanas (Sestao River) · ' + fmtD(d(ll)), () => G.setDest({ x: ll.x, z: ll.z, n: 'Las Llanas', icon: '⚽' }), 'sub');
     KIND.forEach(k => { let best = null; ST.pois.forEach(p => { if (p.c === k[0] && (!best || d(p) < d(best))) best = p; }); if (best) add((CAT[k[0]] || CAT.shop)[2] + ' ' + k[1] + ' · ' + fmtD(d(best)), () => G.setDest({ x: best.x, z: best.z, n: best.n, icon: (CAT[k[0]] || CAT.shop)[2] }), 'sub'); }); }
 }
