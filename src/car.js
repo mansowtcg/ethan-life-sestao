@@ -100,7 +100,7 @@ export function spawnTraffic(scene, px, pz) {
   if (ne.e < 0 || ne.d > 45 || ne.road.u) return; const e = ne.e, rd = ne.road, fwd = rd.o || Math.random() < .5;
   const c = { e, a: fwd ? GR.ea[e] : GR.eb[e], b: fwd ? GR.eb[e] : GR.ea[e], s: (fwd ? ne.t : 1 - ne.t) * GR.el[e], v: 6, road: rd, bumpT: 0, stuck: 0, turn: 0, honk: 0 };
   target(c, _t); if (Math.hypot(_t.x - px, _t.z - pz) < 95) return; for (const o of TR.list) if (Math.hypot(o.x - _t.x, o.z - _t.z) < 18) return;
-  const q = Math.random(), big = rd.w >= 6.5, type = q < .1 && big ? 'van' : q < .17 ? 'sport' : q < .21 && rd.w >= 8 && rd.t !== 'residential' ? 'bus' : 'hatch'; c.g = pooled(type, type === 'bus' ? 0x5c9e3a : COLS[Math.floor(Math.random() * COLS.length)]); c.info = c.g.userData.info;
+  const q = Math.random(), big = rd.w >= 6.5, type = q < .1 && big ? 'van' : q < .17 ? 'sport' : q < .24 && rd.w >= 6.5 && /^(primary|secondary|tertiary)/.test(rd.t) ? 'bus' : 'hatch'; c.g = pooled(type, type === 'bus' ? 0x5c9e3a : COLS[Math.floor(Math.random() * COLS.length)]); c.info = c.g.userData.info; c.type = type; c.dwell = 0; c.lastStop = null;
   c.x = _t.x; c.z = _t.z; c.yaw = Math.atan2(_t.ux, _t.uz); c.y = roadY(c.road, c.x, c.z); c.pitch = 0; c.g.position.set(c.x, c.y, c.z); c.g.rotation.y = c.yaw; scene.add(c.g); TR.list.push(c);
 }
 // obs: [x, z, radio, altura, ...] de lo que deben respetar (Ethan a pie y su coche). now: reloj del juego, para los semáforos
@@ -113,6 +113,8 @@ export function updateTraffic(dt, scene, px, pz, obs, now) {
     for (let k = 0; k < obs.length; k += 4) { if (Math.abs(obs[k + 3] - c.y) > 3) continue; const rx = obs[k] - c.x, rz = obs[k + 1] - c.z, f = rx * ux + rz * uz, s = Math.abs(-rx * uz + rz * ux); if (f > -1 && f < look + obs[k + 2] && s < 1.3 + obs[k + 2]) blocked = true; }
     for (const o of TR.list) { if (o === c || Math.abs(o.y - c.y) > 3) continue; const rx = o.x - c.x, rz = o.z - c.z, f = rx * ux + rz * uz, s = Math.abs(-rx * uz + rz * ux); if (f > 0 && f < look + 2.5 && s < 1.9) blocked = true; }
     if (blocked) { want = 0; c.stuck += dt; } else c.stuck = Math.max(0, c.stuck - dt * 2);
+    // el autobús para en las paradas de su lado: unos segundos con el intermitente puesto y sigue
+    if (c.type === 'bus') { if (c.dwell > 0) { c.dwell -= dt; want = 0; } else { c.lastStop = c.lastStop || null; for (const st of ST.stops) { if (st === c.lastStop) continue; const rx = st.x - c.x, rz = st.z - c.z, f = rx * ux + rz * uz, side = -rx * uz + rz * ux; if (f > 0 && f < 6 && Math.abs(side) < c.road.w / 2 + 2.6 && side * -1 > -1) { c.lastStop = st; c.dwell = 5 + Math.random() * 4; want = 0; break; } } } }
     // semáforo en rojo o ámbar: se para antes de la línea
     if (red) for (const L of ST.lights) { if (L.ux * ux + L.uz * uz < .8) continue; const rx = L.x - c.x, rz = L.z - c.z, f = rx * ux + rz * uz; if (f > 1 && f < 9 + c.v * 1.6 && Math.abs(-rx * uz + rz * ux) < 5) { want = 0; break; } }
     c.v = want > c.v ? Math.min(want, c.v + 3.2 * dt) : Math.max(want, c.v - 11 * dt); c.s += c.v * dt;

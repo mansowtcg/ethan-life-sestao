@@ -6,7 +6,7 @@ import { clamp } from './util.js';
 
 // hora, cénit, horizonte, color del sol, fuerza del sol, luz ambiente, noche (0..1)
 const KEY = [[0, 0x040813, 0x0f1a2e, 0x8fa6d8, .5, .78, 1], [5.6, 0x040813, 0x0f1a2e, 0x8fa6d8, .5, .78, 1], [7, 0x4a6aa8, 0xf0b890, 0xffc890, 1.7, 1.45, .3], [8.6, 0x4387cf, 0xb7d6ee, 0xfff0d8, 2.7, 1.95, 0], [18.2, 0x4387cf, 0xb7d6ee, 0xfff0d8, 2.7, 1.95, 0], [20, 0x3f4f92, 0xf0a070, 0xffb070, 1.7, 1.4, .35], [21.4, 0x040813, 0x0f1a2e, 0x8fa6d8, .5, .78, 1], [24, 0x040813, 0x0f1a2e, 0x8fa6d8, .5, .78, 1]];
-export const SKY = { cover: .3, rain: 0, wind: [1.5, .6], dome: null, drops: null, label: '' };
+export const SKY = { cover: .3, rain: 0, mist: 0, wind: [1.5, .6], dome: null, drops: null, label: '' };
 let sun, hemi, scene, camera, U, rainGeo, rainPos, rainRel, nDrops = 0, fogBase = [200, 800], wxT = 0, tgtCover = .3, tgtRain = 0, time = 0;
 const ca = new THREE.Color(), cb = new THREE.Color(), top = new THREE.Color(), hor = new THREE.Color(), sc = new THREE.Color();
 
@@ -59,14 +59,17 @@ export function updateSky(dt, force) {
   top.setHex(a[1]).lerp(cb.setHex(b[1]), f); hor.setHex(a[2]).lerp(cb.setHex(b[2]), f); sc.setHex(a[3]).lerp(cb.setHex(b[3]), f);
   // nublado: el cielo se agrisa y el sol aprieta menos
   const grey = ca.setHex(0x9aa3ab).multiplyScalar(1 - night * .88); top.lerp(grey, cov * .55 + rn * .25); hor.lerp(grey, cov * .35 + rn * .35);
+  // bruma de la ría: algunas mañanas (de 6 a 11, con poco viento) el valle amanece tapado y se levanta poco a poco
+  { const d = S ? S.day : 1, hm = Math.sin(d * 91.7) * 43758.5453, on = (hm - Math.floor(hm)) < .28 && rn < .3, k = on ? clamp((11 - hF) / 2.5, 0, 1) * clamp((hF - 5.5) / .5, 0, 1) : 0; SKY.mist += (k - SKY.mist) * Math.min(1, (dt || 1) * .3); }
+  if (SKY.mist > .02) hor.lerp(ca.setHex(0xd3d8db).multiplyScalar(1 - night * .8), SKY.mist * .75);
   U.uPos.value.copy(camera.position); U.uTop.value.copy(top); U.uHor.value.copy(hor); U.uSunCol.value.copy(sc).multiplyScalar(night > .9 ? .8 : 1.2); U.uNight.value = night; U.uCover.value = cov; U.uRain.value = rn; U.uHill.value.setHex(0x3f5f52).multiplyScalar(1 - night * .9);
-  scene.fog.color.copy(hor); if (scene.background && scene.background.isColor) scene.background.copy(hor); scene.fog.near = fogBase[0] * (1 - rn * .45); scene.fog.far = fogBase[1] * (1 - rn * .38 - cov * .08);
+  scene.fog.color.copy(hor); if (scene.background && scene.background.isColor) scene.background.copy(hor); scene.fog.near = fogBase[0] * (1 - rn * .45) * (1 - SKY.mist * .85); scene.fog.far = fogBase[1] * (1 - rn * .38 - cov * .08) * (1 - SKY.mist * .72);
   sun.color.copy(sc); sun.intensity = L(4) * (1 - cov * .5 - rn * .2); hemi.intensity = L(5) * (1 + cov * .12 - rn * .08); hemi.color.copy(hor).lerp(cb.setHex(0xffffff), .35); G.night = night; setNight(night);
   const day = clamp((hF - 6) / 15.5, 0, 1), az = night > .9 ? 2.2 : .5 + day * 2.1, el = night > .9 ? .95 : .3 + .8 * Math.sin(Math.PI * day), ce = Math.cos(el), tx = G.px || 0, tz = G.pz || 0;
   const ty = G.py || 0; sun.position.set(tx + Math.cos(az) * ce * 150, ty + Math.sin(el) * 150, tz + Math.sin(az) * ce * 150); sun.target.position.set(tx, ty, tz); U.uSun.value.set(Math.cos(az) * ce, Math.sin(el), Math.sin(az) * ce);
   // suelo mojado
   const wet = 1 - rn * .22; ['g_road', 'g_walk', 'g_path', 'g_lot', 'g_plaza', 'g_base', 'g_land'].forEach(n => { const m = W.mats[n]; if (m) m.color.setScalar(wet); });
-  SKY.label = rn > .3 ? 'Sirimiri' : cov > .7 ? 'Nublado' : cov > .35 ? 'Nubes y claros' : 'Despejado';
+  SKY.label = rn > .3 ? 'Sirimiri' : SKY.mist > .45 ? 'Bruma en la ría' : cov > .7 ? 'Nublado' : cov > .35 ? 'Nubes y claros' : 'Despejado';
 }
 // cada fotograma: la cúpula sigue a la cámara y la lluvia cae
 export function tickSky(dt) {
